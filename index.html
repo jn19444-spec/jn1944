@@ -14,7 +14,6 @@
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand">
-      <span class="brand-mark">SOOP</span>
       <span class="brand-name">+구구+</span>
     </div>
     <div class="topbar-actions">
@@ -36,6 +35,8 @@
     </div>
 
     <nav id="boardTree" class="board-tree"></nav>
+
+    <button id="manageBoardsBtn" class="btn btn-ghost manage-toggle-btn hidden">⚙ 게시판 관리</button>
   </aside>
 
   <!-- 메인 콘텐츠 -->
@@ -89,6 +90,30 @@
       <button id="loginCancelBtn" class="btn btn-ghost">닫기</button>
       <button id="loginSubmitBtn" class="btn btn-primary">로그인</button>
     </div>
+  </div>
+</div>
+
+<!-- 게시판 관리 모달 (관리자 전용) -->
+<div id="manageModal" class="modal hidden">
+  <div class="modal-box manage-box">
+    <div class="manage-header">
+      <h3>게시판 관리</h3>
+      <button id="manageCloseBtn" class="btn btn-ghost">닫기</button>
+    </div>
+
+    <div class="manage-add-row">
+      <input type="text" id="manageNameInput" placeholder="이름 입력 (예: 잡담)">
+      <label class="checkbox-label">
+        <input type="checkbox" id="managePrivateCheck"> 비공개 게시판으로
+      </label>
+      <div class="manage-add-buttons">
+        <button id="manageAddBoardBtn" class="btn btn-ghost">📄 게시판 추가</button>
+        <button id="manageAddGroupBtn" class="btn btn-ghost">T 그룹 제목 추가</button>
+        <button id="manageAddDividerBtn" class="btn btn-ghost">⋯ 구분선 추가</button>
+      </div>
+    </div>
+
+    <div id="manageList" class="manage-list"></div>
   </div>
 </div>
 

@@ -221,3 +221,46 @@ body{
   color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:14px;
 }
 .error-text{color:var(--accent-rose); font-size:12px; margin:0;}
+
+/* ---------- 게시판 관리 ---------- */
+.manage-toggle-btn{
+  width:100%; margin-top:10px; text-align:center;
+  font-size:12px; color:var(--text-dim);
+}
+.manage-box{
+  width:520px; max-width:92vw; max-height:80vh;
+  overflow-y:auto;
+}
+.manage-header{
+  display:flex; align-items:center; justify-content:space-between;
+}
+.manage-add-row{
+  display:flex; flex-direction:column; gap:8px;
+  border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:6px;
+}
+.manage-add-row input[type="text"]{
+  background:var(--bg-panel-2); border:1px solid var(--line);
+  color:var(--text-main); border-radius:8px; padding:9px 12px; font-size:14px;
+}
+.checkbox-label{
+  display:flex; align-items:center; gap:6px;
+  font-size:12px; color:var(--text-dim);
+}
+.manage-add-buttons{display:flex; flex-wrap:wrap; gap:8px;}
+
+.manage-list{display:flex; flex-direction:column; gap:4px;}
+.manage-row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 10px; border-radius:8px;
+}
+.manage-row:hover{background:var(--bg-panel-2);}
+.manage-row-label{font-size:13px; display:flex; align-items:center; gap:6px;}
+.manage-row.type-group .manage-row-label{color:var(--text-dim); font-weight:700; font-size:12px;}
+.manage-row.type-divider{border-top:1px dashed var(--line); padding:2px 10px; opacity:.6;}
+.manage-row-actions{display:flex; gap:4px;}
+.manage-row-actions button{
+  background:transparent; border:none; color:var(--text-dim);
+  cursor:pointer; font-size:13px; padding:4px 6px; border-radius:6px;
+}
+.manage-row-actions button:hover{color:var(--accent-teal); background:var(--bg-panel);}
+.manage-row-actions button.danger:hover{color:var(--accent-rose);}
