@@ -14,7 +14,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand">
-      <span class="brand-name">+구구+</span>
+      <span class="brand-name">개인 게시판</span>
     </div>
     <div class="topbar-actions">
       <span id="whoami" class="whoami"></span>
@@ -31,7 +31,7 @@
     <div class="profile-card">
       <div class="profile-avatar">🐦</div>
       <div class="profile-title">+구구+</div>
-      <div class="profile-sub">개인 팬 아카이브 홈페이지</div>
+      <div class="profile-sub">개인 홈페이지</div>
     </div>
 
     <nav id="boardTree" class="board-tree"></nav>
@@ -62,7 +62,7 @@
       <form id="postForm" class="post-form">
         <input type="text" id="postTitle" placeholder="제목" required>
         <textarea id="postContent" placeholder="내용을 입력하세요" rows="8" required></textarea>
-        <input type="url" id="postImage" placeholder="이미지 URL (선택, imgur 등에 올린 링크 붙여넣기)">
+        <textarea id="postImages" placeholder="이미지/움짤 URL (선택, 한 줄에 하나씩 여러 개 가능)" rows="3"></textarea>
         <div class="form-actions">
           <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
           <button type="submit" class="btn btn-primary">등록하기</button>

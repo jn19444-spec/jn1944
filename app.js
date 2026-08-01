@@ -172,10 +172,10 @@ el("postForm").addEventListener("submit", async (e) => {
   if (!currentUser) return;
   const title = el("postTitle").value.trim();
   const content = el("postContent").value.trim();
-  const imageUrl = el("postImage").value.trim();
+  const imageUrls = el("postImages").value.split("\n").map(s => s.trim()).filter(Boolean);
   await addDoc(collection(db, "posts"), {
     boardId: currentBoardId,
-    title, content, imageUrl: imageUrl || null,
+    title, content, imageUrls,
     author: currentUser.email.split("@")[0],
     createdAt: serverTimestamp(),
     views: 0,
@@ -209,6 +209,7 @@ async function loadPosts(boardId) {
   });
   sortedDocs.forEach(docSnap => {
     const p = docSnap.data();
+    const images = getImages(p);
     const card = document.createElement("div");
     card.className = "post-card";
     card.innerHTML = `
@@ -222,7 +223,10 @@ async function loadPosts(boardId) {
         <div class="post-card-preview">${escapeHtml(p.content)}</div>
         <div class="post-card-stats"><span>👁 ${p.views || 0}</span></div>
       </div>
-      ${p.imageUrl ? `<img class="post-card-thumb" src="${p.imageUrl}" alt="">` : ""}
+      ${images.length ? `<div class="post-card-thumb-wrap">
+          <img class="post-card-thumb" src="${images[0]}" alt="">
+          ${images.length > 1 ? `<span class="thumb-count">${images.length}</span>` : ""}
+        </div>` : ""}
     `;
     card.addEventListener("click", () => openPost(docSnap.id));
     listEl.appendChild(card);
@@ -237,10 +241,11 @@ async function openPost(postId) {
   const p = snap.data();
   updateDoc(ref, { views: increment(1) }).catch(() => {});
 
+  const images = getImages(p);
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
-    ${p.imageUrl ? `<img src="${p.imageUrl}" alt="">` : ""}
+    ${images.map(u => `<img src="${u}" alt="">`).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
     ${currentUser ? `<div class="admin-actions">
       <button id="deletePostBtn" class="btn btn-ghost">삭제하기</button>
@@ -354,6 +359,12 @@ async function deleteRow(row) {
 }
 
 // ---------- 유틸 ----------
+function getImages(p) {
+  if (Array.isArray(p.imageUrls) && p.imageUrls.length) return p.imageUrls;
+  if (p.imageUrl) return [p.imageUrl];
+  return [];
+}
+
 function formatDate(ts) {
   if (!ts) return "";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
