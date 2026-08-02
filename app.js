@@ -1,11 +1,12 @@
 import { firebaseConfig } from './firebase-config.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+  createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, query, where, orderBy, addDoc, doc,
-  deleteDoc, getDocs, getDoc, serverTimestamp, updateDoc, increment
+  deleteDoc, getDocs, getDoc, setDoc, serverTimestamp, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
@@ -34,6 +35,8 @@ const DEFAULT_SEED = [
 ];
 
 let currentUser = null;
+let isAdmin = false;
+let canViewPrivate = false; // 회원이 비공개 게시판 열람 권한을 받았는지
 let currentBoardId = null;
 let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
@@ -44,11 +47,45 @@ const el = (id) => document.getElementById(id);
 // ---------- 인증 상태 ----------
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
+  isAdmin = false;
+  canViewPrivate = false;
+
+  if (user) {
+    // 관리자 확인 (사이트에 딱 한 명, config/site 문서에 저장됨)
+    const configRef = doc(db, "config", "site");
+    const configSnap = await getDoc(configRef).catch(() => null);
+    if (configSnap && configSnap.exists()) {
+      isAdmin = configSnap.data().adminUid === user.uid;
+    } else {
+      // 아직 관리자가 없으면(=배포 직후) 지금 로그인한 사람이 관리자가 됨
+      try {
+        await setDoc(configRef, { adminUid: user.uid });
+        isAdmin = true;
+      } catch (e) {
+        isAdmin = false;
+      }
+    }
+
+    if (!isAdmin) {
+      // 회원 문서 확인 (없으면 생성)
+      const memberRef = doc(db, "members", user.uid);
+      const memberSnap = await getDoc(memberRef).catch(() => null);
+      if (memberSnap && memberSnap.exists()) {
+        canViewPrivate = !!memberSnap.data().canViewPrivate;
+      } else {
+        await setDoc(memberRef, { email: user.email, joinedAt: serverTimestamp(), canViewPrivate: false }).catch(() => {});
+      }
+    }
+  }
+
   el("loginBtn").classList.toggle("hidden", !!user);
+  el("signupBtn").classList.toggle("hidden", !!user);
   el("logoutBtn").classList.toggle("hidden", !user);
-  el("whoami").textContent = user ? `관리자로 로그인됨` : "";
-  el("writeBtn").classList.toggle("hidden", !(user && currentBoard));
-  el("manageBoardsBtn").classList.toggle("hidden", !user);
+  el("adminMenuBtn").classList.toggle("hidden", !isAdmin);
+  el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${user.email})` : "");
+  el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
+  el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
+
   await loadBoardConfig();
   if (currentBoardId === "__all__") loadAllPosts();
   else if (currentBoardId) loadPosts(currentBoardId);
@@ -73,13 +110,64 @@ el("loginSubmitBtn").addEventListener("click", async () => {
   }
 });
 
+el("signupBtn").addEventListener("click", () => el("signupModal").classList.remove("hidden"));
+el("signupCancelBtn").addEventListener("click", () => el("signupModal").classList.add("hidden"));
+
+el("signupSubmitBtn").addEventListener("click", async () => {
+  const email = el("signupEmail").value.trim();
+  const pw = el("signupPassword").value;
+  el("signupError").classList.add("hidden");
+  try {
+    await createUserWithEmailAndPassword(auth, email, pw);
+    el("signupModal").classList.add("hidden");
+    el("signupEmail").value = "";
+    el("signupPassword").value = "";
+  } catch (e) {
+    el("signupError").textContent = "가입 실패: " + (e.code === "auth/email-already-in-use" ? "이미 가입된 이메일이에요." : e.code === "auth/weak-password" ? "비밀번호는 6자 이상이어야 해요." : "입력값을 확인해주세요.");
+    el("signupError").classList.remove("hidden");
+  }
+});
+
+// ---------- 관리자 메뉴 (회원 권한 관리) ----------
+el("adminMenuBtn").addEventListener("click", () => {
+  el("adminMenuModal").classList.remove("hidden");
+  loadMemberList();
+});
+el("adminMenuCloseBtn").addEventListener("click", () => el("adminMenuModal").classList.add("hidden"));
+
+async function loadMemberList() {
+  const listEl = el("memberList");
+  listEl.innerHTML = "불러오는 중...";
+  const snap = await getDocs(collection(db, "members"));
+  if (snap.empty) {
+    listEl.innerHTML = `<p class="empty-state">아직 가입한 회원이 없어요.</p>`;
+    return;
+  }
+  listEl.innerHTML = "";
+  snap.forEach(docSnap => {
+    const m = docSnap.data();
+    const row = document.createElement("div");
+    row.className = "manage-row";
+    row.innerHTML = `
+      <span class="manage-row-label">${escapeHtml(m.email || docSnap.id)}</span>
+      <label class="checkbox-label">
+        <input type="checkbox" ${m.canViewPrivate ? "checked" : ""}> 비공개 게시판 열람 허용
+      </label>
+    `;
+    row.querySelector('input[type="checkbox"]').addEventListener("change", async (e) => {
+      await updateDoc(doc(db, "members", docSnap.id), { canViewPrivate: e.target.checked });
+    });
+    listEl.appendChild(row);
+  });
+}
+
 // ---------- 게시판 구성 불러오기 ----------
 async function loadBoardConfig() {
   const q = query(collection(db, "boards"), orderBy("order", "asc"));
   const snap = await getDocs(q);
 
   if (snap.empty) {
-    if (currentUser) {
+    if (isAdmin) {
       await seedDefaultBoards();
       return loadBoardConfig();
     } else {
@@ -133,7 +221,7 @@ function renderBoardTree() {
       return;
     }
     // type === "board"
-    if (row.isPrivate && !currentUser) return; // 비공개 게시판은 로그인 전엔 숨김
+    if (row.isPrivate && !(isAdmin || canViewPrivate)) return; // 비공개 게시판은 권한 없으면 숨김
     const itemDiv = document.createElement("div");
     itemDiv.className = "board-item" + (row.id === currentBoardId ? " active" : "");
     itemDiv.innerHTML = (row.isPrivate ? '<span class="lock-icon">🔒</span> ' : '') + escapeHtml(row.name);
@@ -146,7 +234,7 @@ function selectBoard(row) {
   currentBoardId = row.id;
   currentBoard = row;
   el("currentBoardName").textContent = row.name;
-  el("writeBtn").classList.toggle("hidden", !currentUser);
+  el("writeBtn").classList.toggle("hidden", !isAdmin);
   showListView();
   renderBoardTree();
   loadPosts(row.id);
@@ -208,7 +296,7 @@ el("backBtn").addEventListener("click", () => {
 // ---------- 글쓰기 / 수정 ----------
 el("postForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!currentUser) return;
+  if (!isAdmin) return;
   const title = el("postTitle").value.trim();
   const content = el("postContent").value.trim();
   const imageUrls = el("postImages").value.split("\n").map(s => s.trim()).filter(Boolean);
@@ -294,7 +382,7 @@ async function loadPosts(boardId) {
 async function loadAllPosts() {
   const listEl = el("postList");
   listEl.innerHTML = "";
-  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || currentUser));
+  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
   let entries = [];
   for (const b of boards) {
     const q = query(collection(db, "posts"), where("boardId", "==", b.id));
@@ -328,7 +416,7 @@ async function openPost(postId) {
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
     ${images.map(u => `<img src="${u}" alt="">`).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
-    ${currentUser ? `<div class="admin-actions">
+    ${isAdmin ? `<div class="admin-actions">
       <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
       <button id="movePostBtn" class="btn btn-ghost">게시판 이동</button>
       <button id="deletePostBtn" class="btn btn-ghost">삭제하기</button>
@@ -336,7 +424,7 @@ async function openPost(postId) {
   `;
   showDetailView();
 
-  if (currentUser) {
+  if (isAdmin) {
     el("deletePostBtn").addEventListener("click", async () => {
       if (!confirm("이 게시글을 삭제할까요?")) return;
       await deleteDoc(ref);

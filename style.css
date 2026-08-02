@@ -239,6 +239,7 @@ body{
   color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:14px;
 }
 .error-text{color:var(--accent-rose); font-size:12px; margin:0;}
+.hint-text{color:var(--text-dim); font-size:12px; margin:8px 0 12px;}
 
 /* ---------- 게시판 관리 ---------- */
 .manage-toggle-btn{
