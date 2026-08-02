@@ -314,8 +314,8 @@ body{
 }
 .post-detail h1{font-size:22px; margin:0 0 8px;}
 .post-detail .meta{color:var(--text-dim); font-size:13px; margin-bottom:16px; font-family:var(--font-mono);}
-.post-detail img{max-width:100%; border-radius:10px; margin:14px 0;}
-.post-detail img.detail-img{ cursor:zoom-in; transition:opacity .15s ease; }
+.post-detail img{max-width:100%; border-radius:10px; margin:14px 0; background:var(--bg-panel-2);}
+.post-detail img.detail-img{ cursor:zoom-in; transition:opacity .15s ease; min-height:80px; }
 .post-detail img.detail-img:hover{ opacity:.85; }
 .post-detail .content-text{white-space:pre-wrap; line-height:1.6;}
 .post-detail .admin-actions{margin-top:20px; display:flex; gap:8px;}

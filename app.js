@@ -58,6 +58,7 @@ let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
 let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
+let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 
 const POSTS_PER_PAGE = 15; // 한 페이지에 보여줄 게시글 수
 let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글들 (최신순 정렬됨)
@@ -276,20 +277,25 @@ async function migrateAllImages() {
     statusEl.textContent = `처리 중... (${i + 1}/${posts.length}) "${p.title || ""}"`;
 
     const newUrls = [];
+    const newThumbUrls = [];
+    const oldThumbs = getThumbs(p);
     let changed = false;
     let postFailed = false;
-    for (const url of images) {
+    for (let j = 0; j < images.length; j++) {
+      const url = images[j];
       try {
         const resp = await fetch(url, { mode: "cors" });
         if (!resp.ok) throw new Error("이미지를 가져오지 못함");
         const blob = await resp.blob();
         const file = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-        const newUrl = await uploadToImgBB(file); // 여기서 리사이즈 후 재업로드됨 (이미 작은 이미지/움짤은 원본 그대로 업로드)
+        const { url: newUrl, thumbUrl } = await uploadToImgBB(file); // 여기서 리사이즈 후 재업로드됨 (이미 작은 이미지/움짤은 원본 그대로 업로드)
         newUrls.push(newUrl);
+        newThumbUrls.push(thumbUrl);
         changed = true;
         imagesMigrated++;
       } catch (err) {
         newUrls.push(url); // 실패하면 원래 링크를 그대로 유지
+        newThumbUrls.push(oldThumbs[j] || url);
         imagesFailed++;
         postFailed = true;
         const row = document.createElement("div");
@@ -299,7 +305,7 @@ async function migrateAllImages() {
       }
     }
     const updates = {};
-    if (changed) updates.imageUrls = newUrls;
+    if (changed) { updates.imageUrls = newUrls; updates.imageThumbUrls = newThumbUrls; }
     if (!postFailed) updates.imagesResized = true; // 실패한 이미지가 있으면 표시하지 않아서 다음 실행 때 다시 시도됨
     if (Object.keys(updates).length) {
       await updateDoc(docSnap.ref, updates);
@@ -611,7 +617,7 @@ el("homeBannerImageFile").addEventListener("change", async (e) => {
   statusEl.classList.remove("hidden", "error");
   statusEl.textContent = "업로드 중...";
   try {
-    homeBannerDraftImageUrl = await uploadToImgBB(file);
+    ({ url: homeBannerDraftImageUrl } = await uploadToImgBB(file));
     statusEl.textContent = "업로드 완료 ✓";
     renderHomeBannerImagePreview();
   } catch (err) {
@@ -750,6 +756,9 @@ async function resizeImageFile(file, maxDim = 1600, quality = 0.85) {
   }
 }
 
+// ImgBB는 업로드하면 원본 외에 작은 썸네일(약 160px)도 같이 만들어줘요.
+// 목록 화면처럼 작게 보여줄 땐 이 썸네일을 쓰면 훨씬 가볍고 빨라요.
+// 반환값: { url: 원본(리사이즈된) 이미지, thumbUrl: 목록용 작은 썸네일 }
 async function uploadToImgBB(file) {
   const resized = await resizeImageFile(file);
   const formData = new FormData();
@@ -760,7 +769,9 @@ async function uploadToImgBB(file) {
   });
   const data = await res.json();
   if (!data.success) throw new Error(data.error?.message || "업로드 실패");
-  return data.data.url;
+  const url = data.data.url;
+  const thumbUrl = data.data.thumb?.url || data.data.medium?.url || url;
+  return { url, thumbUrl };
 }
 
 function renderImagePreviews() {
@@ -769,9 +780,10 @@ function renderImagePreviews() {
   selectedImageUrls.forEach((url, idx) => {
     const item = document.createElement("div");
     item.className = "image-preview-item";
-    item.innerHTML = `<img src="${url}" alt=""><button type="button" class="image-preview-remove" title="삭제">✕</button>`;
+    item.innerHTML = `<img src="${selectedImageThumbUrls[idx] || url}" alt="" loading="lazy"><button type="button" class="image-preview-remove" title="삭제">✕</button>`;
     item.querySelector(".image-preview-remove").addEventListener("click", () => {
       selectedImageUrls.splice(idx, 1);
+      selectedImageThumbUrls.splice(idx, 1);
       renderImagePreviews();
     });
     listEl.appendChild(item);
@@ -780,6 +792,7 @@ function renderImagePreviews() {
 
 function resetImageUploadUI() {
   selectedImageUrls = [];
+  selectedImageThumbUrls = [];
   el("postImageFiles").value = "";
   el("imageUploadStatus").classList.add("hidden");
   renderImagePreviews();
@@ -794,8 +807,9 @@ el("postImageFiles").addEventListener("change", async (e) => {
   let done = 0;
   for (const file of files) {
     try {
-      const url = await uploadToImgBB(file);
+      const { url, thumbUrl } = await uploadToImgBB(file);
       selectedImageUrls.push(url);
+      selectedImageThumbUrls.push(thumbUrl);
       renderImagePreviews();
     } catch (err) {
       statusEl.classList.add("error");
@@ -819,9 +833,10 @@ el("postForm").addEventListener("submit", async (e) => {
   const title = el("postTitle").value.trim();
   const content = el("postContent").value.trim();
   const imageUrls = selectedImageUrls.slice();
+  const imageThumbUrls = selectedImageThumbUrls.slice();
 
   if (editingPostId) {
-    await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls });
+    await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls });
     const idToReopen = editingPostId;
     editingPostId = null;
     el("postForm").reset();
@@ -832,7 +847,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
   await addDoc(collection(db, "posts"), {
     boardId: currentBoardId,
-    title, content, imageUrls,
+    title, content, imageUrls, imageThumbUrls,
     author: currentUser.email.split("@")[0],
     createdAt: serverTimestamp(),
     views: 0,
@@ -847,6 +862,7 @@ el("postForm").addEventListener("submit", async (e) => {
 function renderPostCard(docSnap, opts) {
   const p = docSnap.data();
   const images = getImages(p);
+  const thumbs = getThumbs(p);
   const card = document.createElement("div");
   card.className = "post-card";
   card.innerHTML = `
@@ -862,7 +878,7 @@ function renderPostCard(docSnap, opts) {
       <div class="post-card-stats"><span>👁 ${p.views || 0}</span></div>
     </div>
     ${images.length ? `<div class="post-card-thumb-wrap">
-        <img class="post-card-thumb" src="${images[0]}" alt="">
+        <img class="post-card-thumb" src="${thumbs[0]}" alt="" loading="lazy" decoding="async">
         ${images.length > 1 ? `<span class="thumb-count">${images.length}</span>` : ""}
       </div>` : ""}
   `;
@@ -1002,7 +1018,7 @@ async function openPost(postId) {
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
-    ${images.map((u, i) => `<img src="${u}" alt="" class="detail-img" data-idx="${i}">`).join("")}
+    ${images.map((u, i) => `<img src="${u}" alt="" class="detail-img" data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async">`).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
@@ -1042,6 +1058,7 @@ async function openPost(postId) {
       el("postTitle").value = p.title || "";
       el("postContent").value = p.content || "";
       selectedImageUrls = images.slice();
+      selectedImageThumbUrls = getThumbs(p).slice();
       renderImagePreviews();
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
       currentBoard = boardOfPost || currentBoard;
@@ -1278,6 +1295,14 @@ function getImages(p) {
   if (Array.isArray(p.imageUrls) && p.imageUrls.length) return p.imageUrls;
   if (p.imageUrl) return [p.imageUrl];
   return [];
+}
+
+// 목록/미리보기용 작은 썸네일 목록. imageThumbUrls가 없거나 개수가 안 맞는 옛날 글은
+// 원본 이미지 URL을 그대로 써요(느리긴 해도 안 깨지는 게 우선).
+function getThumbs(p) {
+  const images = getImages(p);
+  if (Array.isArray(p.imageThumbUrls) && p.imageThumbUrls.length === images.length) return p.imageThumbUrls;
+  return images;
 }
 
 function formatDate(ts) {
