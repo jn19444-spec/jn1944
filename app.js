@@ -1128,7 +1128,17 @@ function playPlaylistItem(p, id, rowEl) {
   const embedUrl = getEmbedUrl(p.url);
   const embedEl = el("playlistPlayerEmbed");
   if (embedUrl) {
-    embedEl.innerHTML = `<iframe src="${embedUrl}" title="player" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    // 화면은 음악 카드처럼 보여주고, 실제 영상 iframe은 화면 밖에 숨겨서
+    // 소리만 계속 나오게 해요(완전히 지우면 재생도 같이 끊겨요).
+    embedEl.innerHTML = `
+      <div class="audio-player-card">
+        ${p.thumbnailUrl
+          ? `<img class="audio-player-thumb" src="${escapeHtml(p.thumbnailUrl)}" alt="">`
+          : `<div class="audio-player-icon">🎵</div>`}
+        <div class="audio-player-bars"><span></span><span></span><span></span></div>
+      </div>
+      <iframe class="audio-only-frame" src="${embedUrl}" title="player" allow="autoplay; encrypted-media"></iframe>
+    `;
   } else {
     embedEl.innerHTML = `<div class="playlist-empty" style="padding-top:0;">이 링크는 바로 재생할 수 없어요.<br><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-teal)">새 탭에서 열기 →</a></div>`;
   }
