@@ -320,6 +320,29 @@ body{
 .post-detail .content-text{white-space:pre-wrap; line-height:1.6;}
 .post-detail .admin-actions{margin-top:20px; display:flex; gap:8px;}
 
+.post-detail-nav{
+  margin-top:20px; padding-top:16px; border-top:1px solid var(--line);
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+}
+.post-nav-btn{
+  display:flex; flex-direction:column; gap:4px;
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-main);
+  border-radius:10px; padding:10px 12px; cursor:pointer; text-align:left;
+  font-family:var(--font-body); transition:border-color .15s ease;
+  overflow:hidden;
+}
+.post-nav-btn:hover{ border-color:var(--accent-teal); }
+.post-nav-btn.next{ text-align:right; align-items:flex-end; }
+.post-nav-label{ font-size:11px; color:var(--text-dim); }
+.post-nav-title{
+  font-size:13px; font-weight:700;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;
+}
+.post-nav-empty{ visibility:hidden; }
+@media (max-width:480px){
+  .post-detail-nav{ grid-template-columns:1fr; }
+}
+
 /* ---------- modal ---------- */
 .modal{
   position:fixed; inset:0; background:rgba(0,0,0,.6);

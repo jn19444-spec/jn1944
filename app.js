@@ -714,9 +714,42 @@ el("backBtn").addEventListener("click", () => {
 });
 
 // ---------- 이미지 업로드 (ImgBB) ----------
+// 올리기 전에 브라우저에서 미리 크기를 줄여서(최대 1600px, JPEG 압축) 업로드/로딩을 빠르게 해요.
+// 움짤(GIF)은 리사이즈하면 애니메이션이 깨지므로 원본 그대로 올려요.
+async function resizeImageFile(file, maxDim = 1600, quality = 0.85) {
+  if (file.type === "image/gif") return file;
+  if (!window.createImageBitmap) return file; // 지원 안 하는 구형 브라우저는 원본 그대로
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    if (width <= maxDim && height <= maxDim) {
+      bitmap.close();
+      return file; // 이미 충분히 작으면 그대로
+    }
+    const scale = Math.min(maxDim / width, maxDim / height);
+    const newW = Math.round(width * scale);
+    const newH = Math.round(height * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = newW;
+    canvas.height = newH;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, newW, newH);
+    bitmap.close();
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob) return file;
+    const newName = (file.name || "image").replace(/\.\w+$/, "") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg" });
+  } catch (e) {
+    return file; // 리사이즈 도중 뭔가 실패하면 원본 그대로 업로드(안전망)
+  }
+}
+
 async function uploadToImgBB(file) {
+  const resized = await resizeImageFile(file);
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append("image", resized);
   const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
     method: "POST",
     body: formData,
@@ -955,6 +988,12 @@ async function openPost(postId) {
   const p = snap.data();
   updateDoc(ref, { views: increment(1) }).catch(() => {});
 
+  // 지금 보고 있던 목록(currentListEntries) 기준으로 이전글/다음글을 찾아요.
+  // 목록은 최신순이라, 이전글=한 칸 위(더 최신), 다음글=한 칸 아래(더 오래된) 글이에요.
+  const idx = currentListEntries.findIndex(en => en.docSnap.id === postId);
+  const prevEntry = idx > 0 ? currentListEntries[idx - 1] : null;
+  const nextEntry = idx !== -1 && idx < currentListEntries.length - 1 ? currentListEntries[idx + 1] : null;
+
   const images = getImages(p);
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
@@ -966,12 +1005,25 @@ async function openPost(postId) {
       <button id="movePostBtn" class="btn btn-ghost">게시판 이동</button>
       <button id="deletePostBtn" class="btn btn-ghost">삭제하기</button>
     </div>` : ""}
+    ${(prevEntry || nextEntry) ? `<div class="post-detail-nav">
+      ${prevEntry
+        ? `<button class="post-nav-btn prev" data-id="${prevEntry.docSnap.id}"><span class="post-nav-label">◀ 이전 글</span><span class="post-nav-title">${escapeHtml(prevEntry.docSnap.data().title)}</span></button>`
+        : `<span class="post-nav-empty"></span>`}
+      ${nextEntry
+        ? `<button class="post-nav-btn next" data-id="${nextEntry.docSnap.id}"><span class="post-nav-label">다음 글 ▶</span><span class="post-nav-title">${escapeHtml(nextEntry.docSnap.data().title)}</span></button>`
+        : `<span class="post-nav-empty"></span>`}
+    </div>` : ""}
   `;
   showDetailView();
 
   document.querySelectorAll("#postDetail .detail-img").forEach(imgEl => {
     imgEl.addEventListener("click", () => openLightbox(images, Number(imgEl.dataset.idx)));
   });
+
+  const prevBtn = document.querySelector("#postDetail .post-nav-btn.prev");
+  if (prevBtn) prevBtn.addEventListener("click", () => openPost(prevBtn.dataset.id));
+  const nextBtn = document.querySelector("#postDetail .post-nav-btn.next");
+  if (nextBtn) nextBtn.addEventListener("click", () => openPost(nextBtn.dataset.id));
 
   if (isAdmin) {
     el("deletePostBtn").addEventListener("click", async () => {
