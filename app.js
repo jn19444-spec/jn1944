@@ -181,6 +181,18 @@ function showDetailView() {
   el("detailView").classList.remove("hidden");
 }
 
+el("homeBtn").addEventListener("click", () => {
+  currentBoardId = null;
+  currentBoard = null;
+  editingPostId = null;
+  el("currentBoardName").textContent = "게시판을 선택하세요";
+  el("writeBtn").classList.add("hidden");
+  el("postList").innerHTML = "";
+  el("emptyState").classList.add("hidden");
+  showListView();
+  renderBoardTree();
+});
+
 el("writeBtn").addEventListener("click", () => {
   editingPostId = null;
   el("postForm").reset();
