@@ -252,6 +252,10 @@ body{
 }
 .pagination button:disabled{ opacity:.35; cursor:default; }
 .pagination-ellipsis{ color:var(--text-dim); padding:0 4px; font-size:13px; }
+.load-more-btn{
+  min-width:200px; height:auto; padding:12px 20px;
+  font-family:var(--font-body); font-size:14px;
+}
 
 /* ---------- post form ---------- */
 .post-form{

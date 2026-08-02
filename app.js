@@ -60,9 +60,9 @@ let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글�
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 
-const POSTS_PER_PAGE = 15; // 한 페이지에 보여줄 게시글 수
+const POSTS_PER_PAGE = 15; // 한 번에 보여줄 게시글 수 (더보기/무한스크롤 배치 크기)
 let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글들 (최신순 정렬됨)
-let currentListPage = 1;
+let currentVisibleCount = 0; // 지금까지 화면에 표시된 개수
 
 const el = (id) => document.getElementById(id);
 
@@ -707,7 +707,7 @@ async function performSearch() {
     return;
   }
   entries = sortByDateDesc(entries, e => e.docSnap.data());
-  showPostListPage(entries, 1);
+  showPostListPage(entries);
 }
 
 el("writeBtn").addEventListener("click", () => {
@@ -896,57 +896,51 @@ function sortByDateDesc(docs, getData) {
   });
 }
 
-// ---------- 페이지네이션 ----------
+// ---------- 더보기 / 무한스크롤 ----------
 // entries: [{docSnap, boardName?}, ...] 최신순으로 정렬된 전체 목록
-function showPostListPage(entries, page) {
+// 처음 목록을 열 때 호출: 목록을 비우고 첫 배치를 보여줘요.
+function showPostListPage(entries) {
   currentListEntries = entries;
-  currentListPage = page;
-
-  const listEl = el("postList");
-  listEl.innerHTML = "";
-  const start = (page - 1) * POSTS_PER_PAGE;
-  const pageItems = entries.slice(start, start + POSTS_PER_PAGE);
-  pageItems.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
-
-  renderPagination(entries.length, page);
+  currentVisibleCount = 0;
+  el("postList").innerHTML = "";
+  appendNextBatch();
 }
 
-function renderPagination(totalItems, page) {
+// 다음 배치를 이어붙여서 보여줘요(기존에 보이던 카드는 그대로 두고 뒤에 추가만 함 → 스크롤 위치 안 튐).
+function appendNextBatch() {
+  const listEl = el("postList");
+  const start = currentVisibleCount;
+  const end = Math.min(start + POSTS_PER_PAGE, currentListEntries.length);
+  currentListEntries.slice(start, end).forEach(({ docSnap, boardName }) => {
+    listEl.appendChild(renderPostCard(docSnap, { boardName }));
+  });
+  currentVisibleCount = end;
+  renderLoadMoreControl();
+}
+
+let loadMoreObserver = null;
+function renderLoadMoreControl() {
   const pagEl = el("pagination");
-  const totalPages = Math.ceil(totalItems / POSTS_PER_PAGE);
-  if (totalPages <= 1) {
+  const remaining = currentListEntries.length - currentVisibleCount;
+
+  if (remaining <= 0) {
     pagEl.classList.add("hidden");
     pagEl.innerHTML = "";
+    if (loadMoreObserver) loadMoreObserver.disconnect();
     return;
   }
+
   pagEl.classList.remove("hidden");
+  pagEl.innerHTML = `<button id="loadMoreBtn" class="btn btn-ghost load-more-btn">더보기 (${remaining}개 더보기)</button>`;
+  const btn = el("loadMoreBtn");
+  btn.addEventListener("click", appendNextBatch);
 
-  const goTo = (p) => {
-    if (p < 1 || p > totalPages || p === page) return;
-    showPostListPage(currentListEntries, p);
-    el("listView").scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  let html = `<button data-p="${page - 1}" ${page === 1 ? "disabled" : ""}>‹</button>`;
-
-  // 페이지 번호가 너무 많으면 현재 페이지 주변 + 처음/끝만 보여줘요.
-  const pages = [];
-  for (let p = 1; p <= totalPages; p++) {
-    if (p === 1 || p === totalPages || Math.abs(p - page) <= 2) pages.push(p);
-  }
-  let prev = 0;
-  for (const p of pages) {
-    if (prev && p - prev > 1) html += `<span class="pagination-ellipsis">…</span>`;
-    html += `<button data-p="${p}" class="${p === page ? "active" : ""}">${p}</button>`;
-    prev = p;
-  }
-
-  html += `<button data-p="${page + 1}" ${page === totalPages ? "disabled" : ""}>›</button>`;
-  pagEl.innerHTML = html;
-
-  pagEl.querySelectorAll("button[data-p]").forEach(btn => {
-    btn.addEventListener("click", () => goTo(Number(btn.dataset.p)));
-  });
+  // 버튼이 화면(뷰포트)에 걸쳐 보이면 자동으로 다음 배치를 불러와요(무한스크롤).
+  if (loadMoreObserver) loadMoreObserver.disconnect();
+  loadMoreObserver = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) appendNextBatch();
+  }, { rootMargin: "400px" });
+  loadMoreObserver.observe(btn);
 }
 
 // ---------- 목록 불러오기 (게시판 1개) ----------
@@ -970,7 +964,7 @@ async function loadPosts(boardId) {
   }
   el("emptyState").classList.add("hidden");
   const sortedDocs = sortByDateDesc(snap.docs, d => d.data());
-  showPostListPage(sortedDocs.map(docSnap => ({ docSnap })), 1);
+  showPostListPage(sortedDocs.map(docSnap => ({ docSnap })));
 }
 
 // ---------- 목록 불러오기 (전체 게시판) ----------
@@ -997,7 +991,7 @@ async function loadAllPosts() {
   }
   el("emptyState").classList.add("hidden");
   entries = sortByDateDesc(entries, e => e.docSnap.data());
-  showPostListPage(entries, 1);
+  showPostListPage(entries);
 }
 
 // ---------- 상세보기 ----------
@@ -1246,6 +1240,50 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") el("lightboxNext").click();
 });
 
+// ---------- 라이트박스 스와이프 (모바일) ----------
+// 좌우로 스와이프하면 이전/다음 사진, 아래로 스와이프하면 닫기.
+(() => {
+  const imgEl = el("lightboxImg");
+  let startX = 0, startY = 0, dragX = 0, dragY = 0, dragging = false;
+
+  imgEl.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) return;
+    dragging = true;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dragX = 0;
+    dragY = 0;
+    imgEl.style.transition = "none";
+  }, { passive: true });
+
+  imgEl.addEventListener("touchmove", (e) => {
+    if (!dragging || e.touches.length !== 1) return;
+    dragX = e.touches[0].clientX - startX;
+    dragY = e.touches[0].clientY - startY;
+    // 가로 움직임이 더 크면 좌우 넘기기 동작으로 보고, 손가락을 따라 살짝 이동시켜 보여줘요.
+    if (Math.abs(dragX) > Math.abs(dragY)) {
+      imgEl.style.transform = `translateX(${dragX}px)`;
+    } else {
+      imgEl.style.transform = `translateY(${Math.max(0, dragY)}px)`;
+    }
+  }, { passive: true });
+
+  imgEl.addEventListener("touchend", () => {
+    if (!dragging) return;
+    dragging = false;
+    imgEl.style.transition = "transform .2s ease";
+    imgEl.style.transform = "";
+
+    const SWIPE_THRESHOLD = 60;
+    if (Math.abs(dragX) > Math.abs(dragY) && Math.abs(dragX) > SWIPE_THRESHOLD) {
+      if (dragX < 0) el("lightboxNext").click();
+      else el("lightboxPrev").click();
+    } else if (dragY > SWIPE_THRESHOLD * 1.5) {
+      closeLightbox();
+    }
+  });
+})();
+
 // ---------- 전체 백업 ----------
 el("backupBtn").addEventListener("click", async () => {
   const btn = el("backupBtn");
@@ -1320,3 +1358,10 @@ function escapeHtml(str) {
 renderBoardTree();
 showHomeBanner();
 loadHomeBanner();
+
+// ---------- PWA: 서비스워커 등록 ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
