@@ -37,6 +37,19 @@ const DEFAULT_SEED = [
   { type: "board", name: "쓰레기통", isPrivate: false },
 ];
 
+// ---------- 아이디 로그인용 유틸 ----------
+// Firebase Authentication은 이메일 기반이라, 아이디를 내부적으로 가짜 이메일로 변환해서 사용해요.
+// 화면에는 이메일이 절대 노출되지 않고 아이디만 보여요.
+const ID_EMAIL_DOMAIN = "gugufan.local";
+const ID_PATTERN = /^[a-zA-Z0-9_]{3,20}$/; // 영문, 숫자, 밑줄만 / 3~20자
+
+function idToEmail(id) {
+  return `${id.trim().toLowerCase()}@${ID_EMAIL_DOMAIN}`;
+}
+function emailToId(email) {
+  return (email || "").split("@")[0];
+}
+
 let currentUser = null;
 let isAdmin = false;
 let canViewPrivate = false; // 회원이 비공개 게시판 열람 권한을 받았는지
@@ -97,7 +110,7 @@ onAuthStateChanged(auth, async (user) => {
   el("signupBtn").classList.toggle("hidden", !!user);
   el("logoutBtn").classList.toggle("hidden", !user);
   el("adminMenuBtn").classList.toggle("hidden", !isAdmin);
-  el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${user.email})` : "");
+  el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
   el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
 
@@ -111,11 +124,16 @@ el("loginCancelBtn").addEventListener("click", () => el("loginModal").classList.
 el("logoutBtn").addEventListener("click", () => signOut(auth));
 
 el("loginSubmitBtn").addEventListener("click", async () => {
-  const email = el("loginEmail").value.trim();
+  const id = el("loginEmail").value.trim();
   const pw = el("loginPassword").value;
   el("loginError").classList.add("hidden");
+  if (!id || !pw) {
+    el("loginError").textContent = "아이디와 비밀번호를 입력해주세요.";
+    el("loginError").classList.remove("hidden");
+    return;
+  }
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, pw);
+    const cred = await signInWithEmailAndPassword(auth, idToEmail(id), pw);
 
     // 관리자는 승인 체크 없이 통과, 회원은 승인된 계정인지 확인
     const configSnap = await getDoc(doc(db, "config", "site")).catch(() => null);
@@ -135,7 +153,7 @@ el("loginSubmitBtn").addEventListener("click", async () => {
     el("loginEmail").value = "";
     el("loginPassword").value = "";
   } catch (e) {
-    el("loginError").textContent = "로그인 실패: 이메일/비밀번호를 확인해주세요.";
+    el("loginError").textContent = "로그인 실패: 아이디/비밀번호를 확인해주세요.";
     el("loginError").classList.remove("hidden");
   }
 });
@@ -144,15 +162,22 @@ el("signupBtn").addEventListener("click", () => el("signupModal").classList.remo
 el("signupCancelBtn").addEventListener("click", () => el("signupModal").classList.add("hidden"));
 
 el("signupSubmitBtn").addEventListener("click", async () => {
-  const email = el("signupEmail").value.trim();
+  const id = el("signupEmail").value.trim();
   const pw = el("signupPassword").value;
   el("signupError").classList.add("hidden");
+
+  if (!ID_PATTERN.test(id)) {
+    el("signupError").textContent = "아이디는 영문/숫자/밑줄(_)만 사용해 3~20자로 입력해주세요.";
+    el("signupError").classList.remove("hidden");
+    return;
+  }
+
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pw);
+    const cred = await createUserWithEmailAndPassword(auth, idToEmail(id), pw);
     // 회원 문서를 승인 대기 상태로 생성하고, 바로 로그아웃시켜서
     // 관리자가 승인하기 전까지는 로그인해도 다시 튕겨나가게 해요.
     await setDoc(doc(db, "members", cred.user.uid), {
-      email: cred.user.email,
+      username: id,
       joinedAt: serverTimestamp(),
       canViewPrivate: false,
       approved: false,
@@ -163,7 +188,7 @@ el("signupSubmitBtn").addEventListener("click", async () => {
     el("signupPassword").value = "";
     alert("가입 신청이 완료됐어요!\n관리자가 승인하면 로그인할 수 있어요.");
   } catch (e) {
-    el("signupError").textContent = "가입 실패: " + (e.code === "auth/email-already-in-use" ? "이미 가입된 이메일이에요." : e.code === "auth/weak-password" ? "비밀번호는 6자 이상이어야 해요." : "입력값을 확인해주세요.");
+    el("signupError").textContent = "가입 실패: " + (e.code === "auth/email-already-in-use" ? "이미 사용 중인 아이디예요." : e.code === "auth/weak-password" ? "비밀번호는 6자 이상이어야 해요." : "입력값을 확인해주세요.");
     el("signupError").classList.remove("hidden");
   }
 });
@@ -268,7 +293,7 @@ async function loadMemberList() {
     row.className = "manage-row";
     row.innerHTML = `
       <div class="member-row-info">
-        <span class="member-row-email">${escapeHtml(m.email || m.id)}</span>
+        <span class="member-row-email">${escapeHtml(m.username || m.email || m.id)}</span>
         <span class="member-row-meta">
           <span class="status-pill ${approved ? "approved" : "pending"}">${approved ? "승인됨" : "승인대기"}</span>
           <span>가입일 ${formatDate(m.joinedAt) || "-"}</span>
@@ -298,14 +323,14 @@ async function loadMemberList() {
     const blockBtn = row.querySelector('[data-act="block"]');
     if (blockBtn) {
       blockBtn.addEventListener("click", async () => {
-        if (!confirm(`"${m.email || m.id}" 회원의 접근을 차단할까요?\n다시 승인하기 전까지 로그인할 수 없어요.`)) return;
+        if (!confirm(`"${m.username || m.email || m.id}" 회원의 접근을 차단할까요?\n다시 승인하기 전까지 로그인할 수 없어요.`)) return;
         await updateDoc(doc(db, "members", m.id), { approved: false });
         loadMemberList();
       });
     }
 
     row.querySelector('[data-act="delete"]').addEventListener("click", async () => {
-      if (!confirm(`"${m.email || m.id}" 회원을 삭제할까요?\n삭제하면 이 계정으로 다시 로그인할 수 없어요.\n(같은 이메일로 재가입도 안 돼요 - 완전히 계정을 없애려면 Firebase 콘솔에서 지워야 해요.)`)) return;
+      if (!confirm(`"${m.username || m.email || m.id}" 회원을 삭제할까요?\n삭제하면 이 계정으로 다시 로그인할 수 없어요.\n(같은 아이디로 재가입도 안 돼요 - 완전히 계정을 없애려면 Firebase 콘솔에서 지워야 해요.)`)) return;
       await deleteDoc(doc(db, "members", m.id));
       loadMemberList();
     });
