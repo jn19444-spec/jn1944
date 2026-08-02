@@ -57,6 +57,7 @@ let currentBoardId = null;
 let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
 let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
+let editingPostBoardId = null; // 수정 중인 글이 원래 속한 게시판(캐시 무효화용)
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 
@@ -65,6 +66,25 @@ let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글�
 let currentVisibleCount = 0; // 지금까지 화면에 표시된 개수
 
 const el = (id) => document.getElementById(id);
+
+// ---------- 게시판별 게시글 캐시 ----------
+// 게시판 A → B → 다시 A로 이동할 때마다 매번 새로 불러오지 않도록,
+// 한 번 불러온 게시판의 글 목록을 메모리에 잠깐 기억해둬요.
+// 글쓰기/수정/삭제/이동/공개상태 변경처럼 실제로 데이터가 바뀔 때만 해당 게시판 캐시를 지워요.
+const postsCache = new Map(); // boardId -> QueryDocumentSnapshot[]
+
+async function fetchBoardPosts(boardId) {
+  if (postsCache.has(boardId)) return postsCache.get(boardId);
+  const q = query(collection(db, "posts"), where("boardId", "==", boardId));
+  const snap = await getDocs(q);
+  postsCache.set(boardId, snap.docs);
+  return snap.docs;
+}
+
+function invalidateBoardCache(boardId) {
+  if (boardId) postsCache.delete(boardId);
+  else postsCache.clear(); // 인자 없이 호출하면 전체 캐시를 비움(대량 작업 후)
+}
 
 // ---------- 인증 상태 ----------
 onAuthStateChanged(auth, async (user) => {
@@ -314,6 +334,7 @@ async function migrateAllImages() {
   }
 
   btn.disabled = false;
+  invalidateBoardCache(); // 여러 게시판의 이미지가 한꺼번에 바뀌었으니 전체 캐시를 비움
   statusEl.textContent = `완료! 게시글 ${postsChanged}개 업데이트 · 이미지 ${imagesMigrated}개 성공 · ${imagesFailed}개 실패` +
     (imagesFailed ? " (실패한 이미지는 아래 목록을 참고해서 직접 다운받아 수정하기 화면에서 다시 올려주세요)" : "");
 }
@@ -689,20 +710,20 @@ async function performSearch() {
 
   const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
   const lower = keyword.toLowerCase();
-  let entries = [];
-  for (const b of boards) {
-    const q = query(collection(db, "posts"), where("boardId", "==", b.id));
+  const perBoard = await Promise.all(boards.map(async (b) => {
     try {
-      const snap = await getDocs(q);
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
-        const hit = (d.title || "").toLowerCase().includes(lower) || (d.content || "").toLowerCase().includes(lower);
-        if (hit) entries.push({ docSnap, boardName: b.name });
-      });
+      const docs = await fetchBoardPosts(b.id);
+      return docs
+        .filter(docSnap => {
+          const d = docSnap.data();
+          return (d.title || "").toLowerCase().includes(lower) || (d.content || "").toLowerCase().includes(lower);
+        })
+        .map(docSnap => ({ docSnap, boardName: b.name }));
     } catch (err) {
-      // 개별 게시판 조회 실패는 건너뛰고 계속 진행
+      return []; // 개별 게시판 조회 실패는 건너뛰고 계속 진행
     }
-  }
+  }));
+  let entries = perBoard.flat();
   if (!entries.length) {
     listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
@@ -807,24 +828,34 @@ el("postImageFiles").addEventListener("change", async (e) => {
   statusEl.classList.remove("hidden", "error");
   statusEl.textContent = `이미지 업로드 중... (0/${files.length})`;
   let done = 0;
-  for (const file of files) {
-    try {
-      const { url, thumbUrl } = await uploadToImgBB(file);
-      selectedImageUrls.push(url);
-      selectedImageThumbUrls.push(thumbUrl);
-      renderImagePreviews();
-    } catch (err) {
-      statusEl.classList.add("error");
-      statusEl.textContent = `업로드 실패: ${err.message}`;
-    }
-    done++;
-    if (!statusEl.classList.contains("error")) {
-      statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
-    }
-  }
-  if (!statusEl.classList.contains("error")) {
-    statusEl.classList.add("hidden");
-  }
+  let hadError = false;
+
+  // 한 장씩 순서대로 기다리지 않고 전부 동시에 업로드해요. 순서는 Promise.all이 보장해줘서
+  // 먼저 끝난 게 있어도 선택한 순서 그대로 미리보기에 붙어요.
+  const results = await Promise.all(files.map(file =>
+    uploadToImgBB(file)
+      .then((res) => {
+        done++;
+        if (!hadError) statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
+        return { ok: true, url: res.url, thumbUrl: res.thumbUrl };
+      })
+      .catch((err) => {
+        done++;
+        hadError = true;
+        statusEl.classList.add("error");
+        statusEl.textContent = `업로드 실패: ${err.message}`;
+        return { ok: false };
+      })
+  ));
+
+  results.forEach((r) => {
+    if (!r.ok) return;
+    selectedImageUrls.push(r.url);
+    selectedImageThumbUrls.push(r.thumbUrl);
+  });
+  renderImagePreviews();
+
+  if (!hadError) statusEl.classList.add("hidden");
   el("postImageFiles").value = "";
 });
 
@@ -839,6 +870,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
   if (editingPostId) {
     await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls });
+    invalidateBoardCache(editingPostBoardId);
     const idToReopen = editingPostId;
     editingPostId = null;
     el("postForm").reset();
@@ -855,6 +887,7 @@ el("postForm").addEventListener("submit", async (e) => {
     views: 0,
     isPrivate: !!(currentBoard && currentBoard.isPrivate),
   });
+  invalidateBoardCache(currentBoardId);
   el("postForm").reset();
   resetImageUploadUI();
   showListView();
@@ -948,24 +981,24 @@ function renderLoadMoreControl() {
 // ---------- 목록 불러오기 (게시판 1개) ----------
 async function loadPosts(boardId) {
   const listEl = el("postList");
-  listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  const wasCached = postsCache.has(boardId);
+  if (!wasCached) listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
   el("emptyState").classList.add("hidden");
   el("pagination").classList.add("hidden");
-  const q = query(collection(db, "posts"), where("boardId", "==", boardId));
-  let snap;
+  let docs;
   try {
-    snap = await getDocs(q);
+    docs = await fetchBoardPosts(boardId);
   } catch (err) {
     listEl.innerHTML = `<p class="empty-state">게시글을 불러오지 못했어요. (${err.code || err.message})</p>`;
     return;
   }
-  if (snap.empty) {
+  if (!docs.length) {
     listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
     return;
   }
   el("emptyState").classList.add("hidden");
-  const sortedDocs = sortByDateDesc(snap.docs, d => d.data());
+  const sortedDocs = sortByDateDesc(docs, d => d.data());
   showPostListPage(sortedDocs.map(docSnap => ({ docSnap })));
 }
 
@@ -976,16 +1009,15 @@ async function loadAllPosts() {
   el("emptyState").classList.add("hidden");
   el("pagination").classList.add("hidden");
   const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
-  let entries = [];
-  for (const b of boards) {
-    const q = query(collection(db, "posts"), where("boardId", "==", b.id));
+  const perBoard = await Promise.all(boards.map(async (b) => {
     try {
-      const snap = await getDocs(q);
-      snap.forEach(docSnap => entries.push({ docSnap, boardName: b.name }));
+      const docs = await fetchBoardPosts(b.id);
+      return docs.map(docSnap => ({ docSnap, boardName: b.name }));
     } catch (err) {
-      // 개별 게시판 조회 실패는 건너뛰고 나머지는 계속 보여줌
+      return []; // 개별 게시판 조회 실패는 건너뛰고 나머지는 계속 보여줌
     }
-  }
+  }));
+  let entries = perBoard.flat();
   if (!entries.length) {
     listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
@@ -1045,12 +1077,14 @@ async function openPost(postId) {
     el("deletePostBtn").addEventListener("click", async () => {
       if (!confirm("이 게시글을 삭제할까요?")) return;
       await deleteDoc(ref);
+      invalidateBoardCache(p.boardId);
       showListView();
       if (currentBoardId === "__all__") loadAllPosts(); else loadPosts(currentBoardId);
     });
 
     el("editPostBtn").addEventListener("click", () => {
       editingPostId = postId;
+      editingPostBoardId = p.boardId;
       el("postTitle").value = p.title || "";
       el("postContent").value = p.content || "";
       selectedImageUrls = images.slice();
@@ -1084,6 +1118,8 @@ function openMoveModal(postId, currentPostBoardId) {
       boardId: targetId,
       isPrivate: !!(targetBoard && targetBoard.isPrivate),
     });
+    invalidateBoardCache(currentPostBoardId);
+    invalidateBoardCache(targetId);
     el("moveModal").classList.add("hidden");
     openPost(postId);
   };
@@ -1161,9 +1197,8 @@ async function togglePrivate(row) {
   if (!confirm(msg)) return;
   await updateDoc(doc(db, "boards", row.id), { isPrivate: newVal });
   const postsSnap = await getDocs(query(collection(db, "posts"), where("boardId", "==", row.id)));
-  for (const p of postsSnap.docs) {
-    await updateDoc(p.ref, { isPrivate: newVal });
-  }
+  await Promise.all(postsSnap.docs.map(p => updateDoc(p.ref, { isPrivate: newVal })));
+  invalidateBoardCache(row.id);
   await loadBoardConfig();
   renderManageList();
 }
@@ -1188,9 +1223,8 @@ async function deleteRow(row) {
 
   if (row.type === "board") {
     const postsSnap = await getDocs(query(collection(db, "posts"), where("boardId", "==", row.id)));
-    for (const p of postsSnap.docs) {
-      await deleteDoc(p.ref);
-    }
+    await Promise.all(postsSnap.docs.map(p => deleteDoc(p.ref)));
+    invalidateBoardCache(row.id);
     if (currentBoardId === row.id) {
       currentBoardId = null;
       currentBoard = null;
