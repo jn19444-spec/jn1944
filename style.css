@@ -169,6 +169,7 @@ body{
   border-radius:var(--radius);
 }
 .home-banner-media{
+  position:relative;
   width:104px; height:104px; border-radius:50%;
   overflow:hidden; flex-shrink:0;
   background:var(--bg-panel-2);
@@ -458,6 +459,43 @@ body{
 }
 .manage-row-actions button:hover{color:var(--accent-teal); background:var(--bg-panel);}
 .manage-row-actions button.danger:hover{color:var(--accent-rose);}
+
+/* ---------- 이미지 로딩중 / 에러 표시 (공통) ---------- */
+.img-wrap{
+  position:relative; display:block; overflow:hidden;
+  background:var(--bg-panel-2);
+}
+.img-wrap img{
+  opacity:0; transition:opacity .25s ease; display:block;
+  width:100%; height:100%; object-fit:cover;
+}
+.img-wrap.img-loaded img{ opacity:1; }
+.img-wrap.img-error img{ display:none; }
+.img-spinner{
+  position:absolute; top:50%; left:50%;
+  width:20px; height:20px; margin:-10px 0 0 -10px;
+  border:2px solid var(--line); border-top-color:var(--accent-teal);
+  border-radius:50%; animation:img-spin .7s linear infinite;
+}
+.img-wrap.img-loaded .img-spinner, .img-wrap.img-error .img-spinner{ display:none; }
+.img-error-msg{
+  display:none; position:absolute; inset:0;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:11px; color:var(--text-dim); padding:8px; line-height:1.4;
+}
+.img-wrap.img-error .img-error-msg{ display:flex; }
+@keyframes img-spin{ to{ transform:rotate(360deg); } }
+
+/* 썸네일(목록 카드) 크기 */
+.img-wrap.thumb-wrap{ width:120px; height:80px; border-radius:10px; flex-shrink:0; }
+/* 상세보기 본문 이미지 */
+.img-wrap.detail-wrap{ width:100%; min-height:120px; border-radius:10px; margin:14px 0; }
+.img-wrap.detail-wrap img{ cursor:zoom-in; height:auto; max-height:80vh; object-fit:contain; }
+.img-wrap.detail-wrap.img-loaded{ background:transparent; }
+/* 글쓰기 미리보기 썸네일 */
+.image-preview-item .img-wrap{ width:100%; height:100%; border-radius:inherit; }
+/* 대표화면(홈 배너) 이미지 */
+.home-banner-media .img-wrap{ width:100%; height:100%; border-radius:50%; }
 
 /* ---------- 이미지 확대보기(라이트박스) ---------- */
 .lightbox{

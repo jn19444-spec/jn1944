@@ -592,9 +592,11 @@ async function loadHomeBanner() {
 
 function renderHomeBanner() {
   const hasImg = !!siteConfig.homeBannerImageUrl;
+  el("homeBannerImg").classList.add("hidden");
+  el("homeBannerNoImg").classList.add("hidden");
+  el("homeBannerSpinner").classList.toggle("hidden", !hasImg);
   el("homeBannerImg").src = hasImg ? siteConfig.homeBannerImageUrl : "";
-  el("homeBannerImg").classList.toggle("hidden", !hasImg);
-  el("homeBannerNoImg").classList.toggle("hidden", hasImg);
+  if (!hasImg) el("homeBannerNoImg").classList.remove("hidden");
   el("homeBannerTitle").textContent = siteConfig.homeBannerTitle || "+구구+ 팬 홈페이지";
   el("homeBannerDesc").textContent = siteConfig.homeBannerDesc || "왼쪽에서 게시판을 선택해 시작해보세요.";
   el("editHomeBannerBtn").classList.toggle("hidden", !isAdmin);
@@ -633,7 +635,7 @@ function renderHomeBannerImagePreview() {
   if (!homeBannerDraftImageUrl) return;
   const item = document.createElement("div");
   item.className = "image-preview-item";
-  item.innerHTML = `<img src="${homeBannerDraftImageUrl}" alt=""><button class="image-preview-remove" type="button" title="삭제">✕</button>`;
+  item.innerHTML = `${imgWrap(homeBannerDraftImageUrl)}<button class="image-preview-remove" type="button" title="삭제">✕</button>`;
   item.querySelector("button").addEventListener("click", () => {
     homeBannerDraftImageUrl = null;
     renderHomeBannerImagePreview();
@@ -780,7 +782,7 @@ function renderImagePreviews() {
   selectedImageUrls.forEach((url, idx) => {
     const item = document.createElement("div");
     item.className = "image-preview-item";
-    item.innerHTML = `<img src="${selectedImageThumbUrls[idx] || url}" alt="" loading="lazy"><button type="button" class="image-preview-remove" title="삭제">✕</button>`;
+    item.innerHTML = `${imgWrap(selectedImageThumbUrls[idx] || url, { imgAttrs: 'loading="lazy"' })}<button type="button" class="image-preview-remove" title="삭제">✕</button>`;
     item.querySelector(".image-preview-remove").addEventListener("click", () => {
       selectedImageUrls.splice(idx, 1);
       selectedImageThumbUrls.splice(idx, 1);
@@ -878,7 +880,7 @@ function renderPostCard(docSnap, opts) {
       <div class="post-card-stats"><span>👁 ${p.views || 0}</span></div>
     </div>
     ${images.length ? `<div class="post-card-thumb-wrap">
-        <img class="post-card-thumb" src="${thumbs[0]}" alt="" loading="lazy" decoding="async">
+        ${imgWrap(thumbs[0], { wrapClass: "thumb-wrap", imgClass: "post-card-thumb", imgAttrs: 'loading="lazy" decoding="async"' })}
         ${images.length > 1 ? `<span class="thumb-count">${images.length}</span>` : ""}
       </div>` : ""}
   `;
@@ -1012,7 +1014,7 @@ async function openPost(postId) {
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
-    ${images.map((u, i) => `<img src="${u}" alt="" class="detail-img" data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async">`).join("")}
+    ${images.map((u, i) => imgWrap(u, { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async"` })).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
@@ -1213,11 +1215,20 @@ function openLightbox(images, idx) {
   el("lightbox").classList.remove("hidden");
 }
 function renderLightbox() {
+  el("lightboxSpinner").classList.remove("hidden");
+  el("lightboxImg").classList.add("hidden");
   el("lightboxImg").src = lightboxImages[lightboxIndex];
   const multi = lightboxImages.length > 1;
   el("lightboxPrev").classList.toggle("hidden", !multi);
   el("lightboxNext").classList.toggle("hidden", !multi);
 }
+el("lightboxImg").addEventListener("load", () => {
+  el("lightboxSpinner").classList.add("hidden");
+  el("lightboxImg").classList.remove("hidden");
+});
+el("lightboxImg").addEventListener("error", () => {
+  el("lightboxSpinner").classList.add("hidden");
+});
 function closeLightbox() {
   el("lightbox").classList.add("hidden");
 }
@@ -1329,6 +1340,18 @@ el("backupBtn").addEventListener("click", async () => {
 });
 
 // ---------- 유틸 ----------
+// 이미지를 <span class="img-wrap">로 감싸서 로딩중 스피너 → 로드완료/에러 상태를 자동으로 표시
+function imgWrap(src, opts = {}) {
+  const { wrapClass = "", imgClass = "", imgAttrs = "" } = opts;
+  return `<span class="img-wrap ${wrapClass}">
+    <span class="img-spinner"></span>
+    <span class="img-error-msg">이미지를<br>불러올 수 없어요</span>
+    <img src="${src}" alt="" class="${imgClass}" ${imgAttrs}
+      onload="this.closest('.img-wrap').classList.add('img-loaded')"
+      onerror="this.closest('.img-wrap').classList.add('img-error')">
+  </span>`;
+}
+
 function getImages(p) {
   if (Array.isArray(p.imageUrls) && p.imageUrls.length) return p.imageUrls;
   if (p.imageUrl) return [p.imageUrl];

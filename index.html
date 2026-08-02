@@ -60,8 +60,11 @@
     <section id="listView">
       <!-- 대표화면 배너 (게시판 미선택 시에만 보임, 관리자가 수정 가능) -->
       <div id="homeBanner" class="home-banner hidden">
-        <div class="home-banner-media">
-          <img id="homeBannerImg" src="" alt="" class="hidden">
+        <div class="home-banner-media" id="homeBannerMedia">
+          <span class="img-spinner hidden" id="homeBannerSpinner"></span>
+          <img id="homeBannerImg" src="" alt="" class="hidden"
+            onload="this.classList.remove('hidden'); document.getElementById('homeBannerSpinner').classList.add('hidden');"
+            onerror="this.classList.add('hidden'); document.getElementById('homeBannerNoImg').classList.remove('hidden'); document.getElementById('homeBannerSpinner').classList.add('hidden');">
           <div id="homeBannerNoImg" class="home-banner-noimg">🐦</div>
         </div>
         <div class="home-banner-text">
@@ -251,6 +254,7 @@
 <div id="lightbox" class="lightbox hidden">
   <button id="lightboxClose" class="lightbox-close" title="닫기">✕</button>
   <button id="lightboxPrev" class="lightbox-nav lightbox-prev hidden" title="이전">‹</button>
+  <span id="lightboxSpinner" class="img-spinner hidden"></span>
   <img id="lightboxImg" src="" alt="">
   <button id="lightboxNext" class="lightbox-nav lightbox-next hidden" title="다음">›</button>
 </div>
