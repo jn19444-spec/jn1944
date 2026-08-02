@@ -64,7 +64,12 @@
       <form id="postForm" class="post-form">
         <input type="text" id="postTitle" placeholder="제목" required>
         <textarea id="postContent" placeholder="내용을 입력하세요" rows="8" required></textarea>
-        <textarea id="postImages" placeholder="이미지/움짤 URL (선택, 한 줄에 하나씩 여러 개 가능)" rows="3"></textarea>
+        <div class="image-upload-box">
+          <label for="postImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지/움짤 추가</label>
+          <input type="file" id="postImageFiles" accept="image/*" multiple class="hidden">
+          <span id="imageUploadStatus" class="image-upload-status hidden"></span>
+          <div id="imagePreviewList" class="image-preview-list"></div>
+        </div>
         <div class="form-actions">
           <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
           <button type="submit" class="btn btn-primary">등록하기</button>

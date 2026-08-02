@@ -208,6 +208,43 @@ body{
 }
 .form-actions{display:flex; justify-content:flex-end; gap:8px;}
 
+/* ---------- 이미지 업로드 ---------- */
+.image-upload-box{
+  display:flex; flex-direction:column; gap:10px;
+}
+.image-upload-label{
+  align-self:flex-start; cursor:pointer;
+}
+.image-upload-status{
+  font-size:12px; color:var(--accent-teal);
+}
+.image-upload-status.error{ color:var(--accent-rose); }
+.image-preview-list{
+  display:flex; flex-wrap:wrap; gap:10px;
+}
+.image-preview-item{
+  position:relative; width:90px; height:90px;
+  border-radius:10px; overflow:hidden;
+  border:1px solid var(--line);
+  background:var(--bg-panel-2);
+}
+.image-preview-item img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+.image-preview-remove{
+  position:absolute; top:3px; right:3px;
+  width:20px; height:20px; border-radius:50%;
+  background:rgba(0,0,0,.65); color:#fff;
+  border:none; cursor:pointer; font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+  line-height:1;
+}
+.image-preview-remove:hover{ background:var(--accent-rose); }
+.image-preview-uploading{
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; color:var(--text-dim);
+}
+
 /* ---------- post detail ---------- */
 .post-detail{
   background:var(--bg-panel); border:1px solid var(--line);

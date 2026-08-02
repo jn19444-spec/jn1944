@@ -13,6 +13,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// ImgBB 이미지 업로드용 API 키 (https://api.imgbb.com/ 에서 무료 발급)
+const IMGBB_API_KEY = "9e855746835f598edb43a283d0219413";
+
 // 게시판 구조는 이제 코드가 아니라 Firestore("boards" 컬렉션)에 저장됩니다.
 // 사이드바 아래 "게시판 관리" 버튼(관리자 로그인 후 보임)으로 추가/삭제하세요.
 const DEFAULT_SEED = [
@@ -41,6 +44,7 @@ let currentBoardId = null;
 let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
 let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
+let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 
 const el = (id) => document.getElementById(id);
 
@@ -284,13 +288,76 @@ el("homeBtn").addEventListener("click", () => {
 el("writeBtn").addEventListener("click", () => {
   editingPostId = null;
   el("postForm").reset();
+  resetImageUploadUI();
   showWriteView();
 });
-el("cancelWriteBtn").addEventListener("click", () => { editingPostId = null; showListView(); });
+el("cancelWriteBtn").addEventListener("click", () => { editingPostId = null; resetImageUploadUI(); showListView(); });
 el("backBtn").addEventListener("click", () => {
   showListView();
   if (currentBoardId === "__all__") loadAllPosts();
   else if (currentBoardId) loadPosts(currentBoardId);
+});
+
+// ---------- 이미지 업로드 (ImgBB) ----------
+async function uploadToImgBB(file) {
+  const formData = new FormData();
+  formData.append("image", file);
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error?.message || "업로드 실패");
+  return data.data.url;
+}
+
+function renderImagePreviews() {
+  const listEl = el("imagePreviewList");
+  listEl.innerHTML = "";
+  selectedImageUrls.forEach((url, idx) => {
+    const item = document.createElement("div");
+    item.className = "image-preview-item";
+    item.innerHTML = `<img src="${url}" alt=""><button type="button" class="image-preview-remove" title="삭제">✕</button>`;
+    item.querySelector(".image-preview-remove").addEventListener("click", () => {
+      selectedImageUrls.splice(idx, 1);
+      renderImagePreviews();
+    });
+    listEl.appendChild(item);
+  });
+}
+
+function resetImageUploadUI() {
+  selectedImageUrls = [];
+  el("postImageFiles").value = "";
+  el("imageUploadStatus").classList.add("hidden");
+  renderImagePreviews();
+}
+
+el("postImageFiles").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  const statusEl = el("imageUploadStatus");
+  statusEl.classList.remove("hidden", "error");
+  statusEl.textContent = `이미지 업로드 중... (0/${files.length})`;
+  let done = 0;
+  for (const file of files) {
+    try {
+      const url = await uploadToImgBB(file);
+      selectedImageUrls.push(url);
+      renderImagePreviews();
+    } catch (err) {
+      statusEl.classList.add("error");
+      statusEl.textContent = `업로드 실패: ${err.message}`;
+    }
+    done++;
+    if (!statusEl.classList.contains("error")) {
+      statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
+    }
+  }
+  if (!statusEl.classList.contains("error")) {
+    statusEl.classList.add("hidden");
+  }
+  el("postImageFiles").value = "";
 });
 
 // ---------- 글쓰기 / 수정 ----------
@@ -299,13 +366,14 @@ el("postForm").addEventListener("submit", async (e) => {
   if (!isAdmin) return;
   const title = el("postTitle").value.trim();
   const content = el("postContent").value.trim();
-  const imageUrls = el("postImages").value.split("\n").map(s => s.trim()).filter(Boolean);
+  const imageUrls = selectedImageUrls.slice();
 
   if (editingPostId) {
     await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls });
     const idToReopen = editingPostId;
     editingPostId = null;
     el("postForm").reset();
+    resetImageUploadUI();
     openPost(idToReopen);
     return;
   }
@@ -319,6 +387,7 @@ el("postForm").addEventListener("submit", async (e) => {
     isPrivate: !!(currentBoard && currentBoard.isPrivate),
   });
   el("postForm").reset();
+  resetImageUploadUI();
   showListView();
   loadPosts(currentBoardId);
 });
@@ -436,7 +505,8 @@ async function openPost(postId) {
       editingPostId = postId;
       el("postTitle").value = p.title || "";
       el("postContent").value = p.content || "";
-      el("postImages").value = images.join("\n");
+      selectedImageUrls = images.slice();
+      renderImagePreviews();
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
       currentBoard = boardOfPost || currentBoard;
       showWriteView();
