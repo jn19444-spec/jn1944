@@ -293,45 +293,55 @@ body{
 .hint-text{color:var(--text-dim); font-size:12px; margin:8px 0 12px;}
 
 /* ---------- 플레이리스트 ---------- */
-.playlist-panel{
-  position:fixed; top:70px; right:20px;
-  width:320px; max-height:70vh; overflow-y:auto;
-  background:var(--bg-panel); border:1px solid var(--line);
-  border-radius:var(--radius); padding:16px;
-  z-index:40; box-shadow:0 10px 30px rgba(0,0,0,.5);
-}
-@media (max-width:820px){
-  .playlist-panel{ left:10px; right:10px; width:auto; top:64px; }
-}
-.playlist-panel-header{
-  display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
-}
-.playlist-panel-header h3{ margin:0; font-family:var(--font-display); font-weight:400; font-size:16px; }
-.playlist-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
-.playlist-item{
-  display:flex; align-items:center; justify-content:space-between;
-  gap:8px; padding:8px 10px; border-radius:8px; background:var(--bg-panel-2);
-}
-.playlist-item a{
-  color:var(--text-main); text-decoration:none; font-size:13px; flex:1;
-  min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.playlist-item a:hover{ color:var(--accent-teal); }
-.playlist-item button{
-  background:transparent; border:none; color:var(--text-dim);
-  cursor:pointer; font-size:13px; padding:2px 6px; border-radius:6px; flex-shrink:0;
-}
-.playlist-item button:hover{ color:var(--accent-rose); }
-.playlist-empty{ color:var(--text-dim); font-size:12px; text-align:center; padding:20px 0; }
+.playlist-box{ width:820px; max-width:94vw; max-height:86vh; overflow-y:auto; }
+
 .playlist-add-row{
-  display:flex; flex-direction:column; gap:6px;
-  border-top:1px solid var(--line); padding-top:10px;
+  display:flex; flex-direction:column; gap:8px;
+  border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:6px;
 }
 .playlist-add-row input{
   background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-main);
-  border-radius:8px; padding:8px 10px; font-size:13px; font-family:var(--font-body);
+  border-radius:8px; padding:9px 12px; font-size:14px; font-family:var(--font-body);
 }
 .playlist-add-row input:focus{ outline:2px solid var(--accent-teal); outline-offset:1px; }
+
+.playlist-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+  gap:12px; margin-top:6px;
+}
+.playlist-card{
+  position:relative; border-radius:10px; overflow:hidden; cursor:pointer;
+  aspect-ratio:16/10; background:var(--bg-panel-2); border:1px solid var(--line);
+  transition:border-color .15s ease;
+}
+.playlist-card:hover{ border-color:var(--accent-teal); }
+.playlist-card img{ width:100%; height:100%; object-fit:cover; display:block; }
+.playlist-card-noimg{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  font-size:30px; color:var(--text-dim);
+}
+.playlist-card-title{
+  position:absolute; left:0; right:0; bottom:0;
+  background:linear-gradient(transparent, rgba(0,0,0,.88));
+  color:#fff; font-size:12px; font-weight:700; padding:18px 8px 7px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.playlist-card-del{
+  position:absolute; top:5px; right:5px; width:22px; height:22px; border-radius:50%;
+  background:rgba(0,0,0,.65); color:#fff; border:none; cursor:pointer; font-size:12px;
+  display:flex; align-items:center; justify-content:center; line-height:1; z-index:2;
+}
+.playlist-card-del:hover{ background:var(--accent-rose); }
+
+.playlist-empty{ color:var(--text-dim); font-size:12px; text-align:center; padding:30px 0; }
+
+.playlist-player{ margin-top:4px; }
+.playlist-player-embed{
+  position:relative; width:100%; padding-top:56.25%;
+  background:#000; border-radius:10px; overflow:hidden; margin-top:10px;
+}
+.playlist-player-embed iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+.playlist-player-title{ margin-top:10px; font-size:14px; font-weight:700; }
 
 /* ---------- 회원 관리 ---------- */
 .pending-badge{

@@ -27,17 +27,35 @@
   </div>
 </header>
 
-<!-- 플레이리스트 (항상 상단바에서 열 수 있는 고정 창) -->
-<div id="playlistPanel" class="playlist-panel hidden">
-  <div class="playlist-panel-header">
-    <h3>🎵 플레이리스트</h3>
-    <button id="playlistCloseBtn" class="btn btn-ghost">닫기</button>
-  </div>
-  <div id="playlistList" class="playlist-list"></div>
-  <div id="playlistAddRow" class="playlist-add-row hidden">
-    <input type="text" id="playlistTitleInput" placeholder="노래 제목 (선택)">
-    <input type="text" id="playlistUrlInput" placeholder="링크 (유튜브 등)">
-    <button id="playlistAddBtn" class="btn btn-primary">➕ 추가</button>
+<!-- 플레이리스트 (썸네일 카드 그리드로 등록/재생) -->
+<div id="playlistModal" class="modal hidden">
+  <div class="modal-box playlist-box">
+    <div class="manage-header">
+      <h3>🎵 플레이리스트</h3>
+      <button id="playlistCloseBtn" class="btn btn-ghost">닫기</button>
+    </div>
+
+    <div id="playlistAddRow" class="playlist-add-row hidden">
+      <input type="text" id="playlistTitleInput" placeholder="노래 제목">
+      <input type="text" id="playlistUrlInput" placeholder="유튜브 등 링크">
+      <div class="image-upload-box">
+        <label for="playlistThumbFile" class="btn btn-ghost image-upload-label">🖼 썸네일 추가</label>
+        <input type="file" id="playlistThumbFile" accept="image/*" class="hidden">
+        <span id="playlistThumbStatus" class="image-upload-status hidden"></span>
+        <div id="playlistThumbPreview" class="image-preview-list"></div>
+      </div>
+      <button id="playlistAddBtn" class="btn btn-primary">➕ 등록</button>
+    </div>
+
+    <!-- 재생 화면 -->
+    <div id="playlistPlayer" class="playlist-player hidden">
+      <button id="playlistBackBtn" class="btn btn-ghost">← 목록으로</button>
+      <div id="playlistPlayerEmbed" class="playlist-player-embed"></div>
+      <div id="playlistPlayerTitle" class="playlist-player-title"></div>
+    </div>
+
+    <!-- 카드 그리드 -->
+    <div id="playlistGrid" class="playlist-grid"></div>
   </div>
 </div>
 

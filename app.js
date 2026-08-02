@@ -959,47 +959,119 @@ el("backupBtn").addEventListener("click", async () => {
 });
 
 // ---------- 플레이리스트 ----------
+let playlistThumbUrl = null; // 등록 폼에서 업로드된 썸네일 URL
+
 el("playlistBtn").addEventListener("click", () => {
-  const panel = el("playlistPanel");
-  const willOpen = panel.classList.contains("hidden");
-  panel.classList.toggle("hidden");
-  if (willOpen) loadPlaylist();
+  el("playlistModal").classList.remove("hidden");
+  showPlaylistGrid();
+  loadPlaylist();
 });
-el("playlistCloseBtn").addEventListener("click", () => el("playlistPanel").classList.add("hidden"));
-document.addEventListener("click", (e) => {
-  const panel = el("playlistPanel");
-  if (panel.classList.contains("hidden")) return;
-  if (panel.contains(e.target) || e.target === el("playlistBtn")) return;
-  panel.classList.add("hidden");
-});
+el("playlistCloseBtn").addEventListener("click", () => el("playlistModal").classList.add("hidden"));
+el("playlistBackBtn").addEventListener("click", showPlaylistGrid);
+
+function showPlaylistGrid() {
+  el("playlistPlayer").classList.add("hidden");
+  el("playlistPlayerEmbed").innerHTML = "";
+  el("playlistGrid").classList.remove("hidden");
+  el("playlistAddRow").classList.toggle("hidden", !isAdmin);
+}
 
 async function loadPlaylist() {
   el("playlistAddRow").classList.toggle("hidden", !isAdmin);
-  const listEl = el("playlistList");
-  listEl.innerHTML = "불러오는 중...";
+  const gridEl = el("playlistGrid");
+  gridEl.innerHTML = "불러오는 중...";
   const snap = await getDocs(query(collection(db, "playlist"), orderBy("order", "asc"))).catch(() => null);
   if (!snap || snap.empty) {
-    listEl.innerHTML = `<p class="playlist-empty">아직 추가된 노래가 없어요.</p>`;
+    gridEl.innerHTML = `<p class="playlist-empty">아직 등록된 노래가 없어요.</p>`;
     return;
   }
-  listEl.innerHTML = "";
+  gridEl.innerHTML = "";
   snap.forEach(docSnap => {
     const p = docSnap.data();
-    const item = document.createElement("div");
-    item.className = "playlist-item";
-    item.innerHTML = `
-      <a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">🎵 ${escapeHtml(p.title || p.url)}</a>
-      ${isAdmin ? `<button data-act="del" title="삭제">✕</button>` : ""}
+    const card = document.createElement("div");
+    card.className = "playlist-card";
+    card.innerHTML = `
+      ${p.thumbnailUrl ? `<img src="${escapeHtml(p.thumbnailUrl)}" alt="">` : `<div class="playlist-card-noimg">🎵</div>`}
+      <div class="playlist-card-title">${escapeHtml(p.title || p.url)}</div>
+      ${isAdmin ? `<button class="playlist-card-del" title="삭제">✕</button>` : ""}
     `;
+    card.addEventListener("click", () => playPlaylistItem(p));
     if (isAdmin) {
-      item.querySelector('[data-act="del"]').addEventListener("click", async () => {
+      card.querySelector(".playlist-card-del").addEventListener("click", async (e) => {
+        e.stopPropagation();
         if (!confirm(`"${p.title || p.url}"을(를) 목록에서 지울까요?`)) return;
         await deleteDoc(docSnap.ref);
         loadPlaylist();
       });
     }
-    listEl.appendChild(item);
+    gridEl.appendChild(card);
   });
+}
+
+// 카드를 누르면 목록 화면 대신 재생 화면으로 옮겨가서 바로 들을 수 있어요.
+function playPlaylistItem(p) {
+  el("playlistGrid").classList.add("hidden");
+  el("playlistAddRow").classList.add("hidden");
+  el("playlistPlayer").classList.remove("hidden");
+  el("playlistPlayerTitle").textContent = p.title || p.url;
+
+  const embedUrl = getYoutubeEmbedUrl(p.url);
+  const embedEl = el("playlistPlayerEmbed");
+  if (embedUrl) {
+    embedEl.innerHTML = `<iframe src="${embedUrl}" title="player" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+  } else {
+    embedEl.innerHTML = `<div class="playlist-empty" style="padding-top:0;">이 링크는 바로 재생할 수 없어요.<br><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-teal)">새 탭에서 열기 →</a></div>`;
+  }
+}
+
+// 유튜브 링크(watch/youtu.be/shorts)를 임베드용 URL로 변환. 유튜브가 아니면 null.
+function getYoutubeEmbedUrl(url) {
+  try {
+    const u = new URL(url);
+    let id = null;
+    if (u.hostname.includes("youtu.be")) {
+      id = u.pathname.slice(1);
+    } else if (u.hostname.includes("youtube.com")) {
+      if (u.pathname === "/watch") id = u.searchParams.get("v");
+      else if (u.pathname.startsWith("/shorts/")) id = u.pathname.split("/")[2];
+      else if (u.pathname.startsWith("/embed/")) id = u.pathname.split("/")[2];
+    }
+    return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ---------- 플레이리스트 썸네일 업로드 ----------
+el("playlistThumbFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = el("playlistThumbStatus");
+  statusEl.classList.remove("hidden", "error");
+  statusEl.textContent = "업로드 중...";
+  try {
+    playlistThumbUrl = await uploadToImgBB(file);
+    statusEl.textContent = "업로드 완료 ✓";
+    renderPlaylistThumbPreview();
+  } catch (err) {
+    statusEl.textContent = "업로드 실패: " + err.message;
+    statusEl.classList.add("error");
+  }
+  e.target.value = "";
+});
+
+function renderPlaylistThumbPreview() {
+  const listEl = el("playlistThumbPreview");
+  listEl.innerHTML = "";
+  if (!playlistThumbUrl) return;
+  const item = document.createElement("div");
+  item.className = "image-preview-item";
+  item.innerHTML = `<img src="${playlistThumbUrl}" alt=""><button class="image-preview-remove" type="button" title="삭제">✕</button>`;
+  item.querySelector("button").addEventListener("click", () => {
+    playlistThumbUrl = null;
+    renderPlaylistThumbPreview();
+  });
+  listEl.appendChild(item);
 }
 
 el("playlistAddBtn").addEventListener("click", addPlaylistItem);
@@ -1012,9 +1084,17 @@ async function addPlaylistItem() {
   let url = el("playlistUrlInput").value.trim();
   if (!url) return;
   if (!/^https?:\/\//i.test(url)) url = "https://" + url; // 프로토콜 빠뜨려도 알아서 붙여줌
-  await addDoc(collection(db, "playlist"), { title, url, order: Date.now(), addedAt: serverTimestamp() });
+  await addDoc(collection(db, "playlist"), {
+    title, url,
+    thumbnailUrl: playlistThumbUrl || null,
+    order: Date.now(),
+    addedAt: serverTimestamp(),
+  });
   el("playlistTitleInput").value = "";
   el("playlistUrlInput").value = "";
+  playlistThumbUrl = null;
+  renderPlaylistThumbPreview();
+  el("playlistThumbStatus").classList.add("hidden");
   loadPlaylist();
 }
 
