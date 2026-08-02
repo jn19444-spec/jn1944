@@ -1125,7 +1125,7 @@ function playPlaylistItem(p, id, rowEl) {
   el("playlistPlayer").classList.remove("hidden");
   el("playlistPlayerTitle").textContent = p.title || p.url;
 
-  const embedUrl = getYoutubeEmbedUrl(p.url);
+  const embedUrl = getEmbedUrl(p.url);
   const embedEl = el("playlistPlayerEmbed");
   if (embedUrl) {
     embedEl.innerHTML = `<iframe src="${embedUrl}" title="player" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
@@ -1135,19 +1135,34 @@ function playPlaylistItem(p, id, rowEl) {
   el("playlistPlayer").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// 유튜브 링크(watch/youtu.be/shorts)를 임베드용 URL로 변환. 유튜브가 아니면 null.
-function getYoutubeEmbedUrl(url) {
+// 유튜브(watch/youtu.be/shorts) 또는 SOOP(옛 아프리카TV) VOD 링크를 임베드용 URL로 변환.
+// 둘 다 아니면 null.
+function getEmbedUrl(url) {
   try {
     const u = new URL(url);
-    let id = null;
+
+    // 유튜브
+    let ytId = null;
     if (u.hostname.includes("youtu.be")) {
-      id = u.pathname.slice(1);
+      ytId = u.pathname.slice(1);
     } else if (u.hostname.includes("youtube.com")) {
-      if (u.pathname === "/watch") id = u.searchParams.get("v");
-      else if (u.pathname.startsWith("/shorts/")) id = u.pathname.split("/")[2];
-      else if (u.pathname.startsWith("/embed/")) id = u.pathname.split("/")[2];
+      if (u.pathname === "/watch") ytId = u.searchParams.get("v");
+      else if (u.pathname.startsWith("/shorts/")) ytId = u.pathname.split("/")[2];
+      else if (u.pathname.startsWith("/embed/")) ytId = u.pathname.split("/")[2];
     }
-    return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : null;
+    if (ytId) return `https://www.youtube.com/embed/${ytId}?autoplay=1`;
+
+    // SOOP(옛 아프리카TV) VOD - https://vod.sooplive.com/player/{번호} 형태
+    if (u.hostname.includes("sooplive.com") || u.hostname.includes("afreecatv.com")) {
+      const parts = u.pathname.split("/").filter(Boolean); // ["player", "202823293", ...]
+      const playerIdx = parts.indexOf("player");
+      const vodId = playerIdx !== -1 ? parts[playerIdx + 1] : null;
+      if (vodId) {
+        return `https://vod.sooplive.com/player/${vodId}/embed?autoPlay=true&showChat=false&mutePlay=true`;
+      }
+    }
+
+    return null;
   } catch (e) {
     return null;
   }
