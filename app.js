@@ -980,8 +980,14 @@ async function loadPlaylist() {
   el("playlistAddRow").classList.toggle("hidden", !isAdmin);
   const gridEl = el("playlistGrid");
   gridEl.innerHTML = "불러오는 중...";
-  const snap = await getDocs(query(collection(db, "playlist"), orderBy("order", "asc"))).catch(() => null);
-  if (!snap || snap.empty) {
+  let snap;
+  try {
+    snap = await getDocs(query(collection(db, "playlist"), orderBy("order", "asc")));
+  } catch (err) {
+    gridEl.innerHTML = `<p class="playlist-empty">목록을 불러오지 못했어요.<br>(${escapeHtml(err.code || err.message)})</p>`;
+    return;
+  }
+  if (snap.empty) {
     gridEl.innerHTML = `<p class="playlist-empty">아직 등록된 노래가 없어요.</p>`;
     return;
   }
@@ -1082,20 +1088,30 @@ el("playlistAddBtn").addEventListener("click", addPlaylistItem);
 async function addPlaylistItem() {
   const title = el("playlistTitleInput").value.trim();
   let url = el("playlistUrlInput").value.trim();
-  if (!url) return;
+  if (!url) { alert("링크를 입력해주세요."); return; }
   if (!/^https?:\/\//i.test(url)) url = "https://" + url; // 프로토콜 빠뜨려도 알아서 붙여줌
-  await addDoc(collection(db, "playlist"), {
-    title, url,
-    thumbnailUrl: playlistThumbUrl || null,
-    order: Date.now(),
-    addedAt: serverTimestamp(),
-  });
-  el("playlistTitleInput").value = "";
-  el("playlistUrlInput").value = "";
-  playlistThumbUrl = null;
-  renderPlaylistThumbPreview();
-  el("playlistThumbStatus").classList.add("hidden");
-  loadPlaylist();
+
+  const btn = el("playlistAddBtn");
+  btn.disabled = true;
+  try {
+    await addDoc(collection(db, "playlist"), {
+      title, url,
+      thumbnailUrl: playlistThumbUrl || null,
+      order: Date.now(),
+      addedAt: serverTimestamp(),
+    });
+    el("playlistTitleInput").value = "";
+    el("playlistUrlInput").value = "";
+    playlistThumbUrl = null;
+    renderPlaylistThumbPreview();
+    el("playlistThumbStatus").classList.add("hidden");
+    loadPlaylist();
+  } catch (err) {
+    alert("등록 실패: " + (err.code || err.message) +
+      "\n\nFirestore 보안 규칙에 playlist 컬렉션 쓰기 권한이 없을 가능성이 높아요. Firebase 콘솔 > Firestore Database > 규칙에서 playlist 컬렉션 규칙을 확인해주세요.");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ---------- 유틸 ----------
