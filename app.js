@@ -341,6 +341,52 @@ el("homeBtn").addEventListener("click", () => {
   renderBoardTree();
 });
 
+// ---------- 검색 ----------
+el("searchBtn").addEventListener("click", performSearch);
+el("searchInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") performSearch();
+});
+
+async function performSearch() {
+  const keyword = el("searchInput").value.trim();
+  if (!keyword) return;
+
+  currentBoardId = "__search__";
+  currentBoard = null;
+  editingPostId = null;
+  el("currentBoardName").textContent = `🔍 검색 결과: "${keyword}"`;
+  el("writeBtn").classList.add("hidden");
+  showListView();
+  renderBoardTree();
+
+  const listEl = el("postList");
+  listEl.innerHTML = "";
+  el("emptyState").classList.add("hidden");
+
+  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const lower = keyword.toLowerCase();
+  let entries = [];
+  for (const b of boards) {
+    const q = query(collection(db, "posts"), where("boardId", "==", b.id));
+    try {
+      const snap = await getDocs(q);
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const hit = (d.title || "").toLowerCase().includes(lower) || (d.content || "").toLowerCase().includes(lower);
+        if (hit) entries.push({ docSnap, boardName: b.name });
+      });
+    } catch (err) {
+      // 개별 게시판 조회 실패는 건너뛰고 계속 진행
+    }
+  }
+  if (!entries.length) {
+    el("emptyState").classList.remove("hidden");
+    return;
+  }
+  entries = sortByDateDesc(entries, e => e.docSnap.data());
+  entries.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
+}
+
 el("writeBtn").addEventListener("click", () => {
   editingPostId = null;
   el("postForm").reset();
@@ -539,7 +585,7 @@ async function openPost(postId) {
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
-    ${images.map(u => `<img src="${u}" alt="">`).join("")}
+    ${images.map((u, i) => `<img src="${u}" alt="" class="detail-img" data-idx="${i}">`).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
@@ -548,6 +594,10 @@ async function openPost(postId) {
     </div>` : ""}
   `;
   showDetailView();
+
+  document.querySelectorAll("#postDetail .detail-img").forEach(imgEl => {
+    imgEl.addEventListener("click", () => openLightbox(images, Number(imgEl.dataset.idx)));
+  });
 
   if (isAdmin) {
     el("deletePostBtn").addEventListener("click", async () => {
@@ -710,6 +760,88 @@ async function deleteRow(row) {
   await loadBoardConfig();
   renderManageList();
 }
+
+// ---------- 이미지 확대보기(라이트박스) ----------
+let lightboxImages = [];
+let lightboxIndex = 0;
+
+function openLightbox(images, idx) {
+  lightboxImages = images;
+  lightboxIndex = idx;
+  renderLightbox();
+  el("lightbox").classList.remove("hidden");
+}
+function renderLightbox() {
+  el("lightboxImg").src = lightboxImages[lightboxIndex];
+  const multi = lightboxImages.length > 1;
+  el("lightboxPrev").classList.toggle("hidden", !multi);
+  el("lightboxNext").classList.toggle("hidden", !multi);
+}
+function closeLightbox() {
+  el("lightbox").classList.add("hidden");
+}
+el("lightboxClose").addEventListener("click", closeLightbox);
+el("lightbox").addEventListener("click", (e) => {
+  if (e.target.id === "lightbox") closeLightbox();
+});
+el("lightboxPrev").addEventListener("click", () => {
+  lightboxIndex = (lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length;
+  renderLightbox();
+});
+el("lightboxNext").addEventListener("click", () => {
+  lightboxIndex = (lightboxIndex + 1) % lightboxImages.length;
+  renderLightbox();
+});
+document.addEventListener("keydown", (e) => {
+  if (el("lightbox").classList.contains("hidden")) return;
+  if (e.key === "Escape") closeLightbox();
+  if (e.key === "ArrowLeft") el("lightboxPrev").click();
+  if (e.key === "ArrowRight") el("lightboxNext").click();
+});
+
+// ---------- 전체 백업 ----------
+el("backupBtn").addEventListener("click", async () => {
+  const btn = el("backupBtn");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "백업 만드는 중...";
+  try {
+    const postsSnap = await getDocs(collection(db, "posts"));
+    const posts = postsSnap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        boardId: data.boardId,
+        title: data.title || "",
+        content: data.content || "",
+        author: data.author || "",
+        imageUrls: getImages(data),
+        views: data.views || 0,
+        isPrivate: !!data.isPrivate,
+        createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : null,
+      };
+    });
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      boards: boardRows.map(({ id, type, name, isPrivate, order }) => ({ id, type, name, isPrivate: !!isPrivate, order })),
+      posts,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gugu-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert("백업 실패: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
 
 // ---------- 유틸 ----------
 function getImages(p) {

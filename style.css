@@ -103,6 +103,18 @@ body{
   border-radius:var(--radius);
   padding:10px 8px;
 }
+
+/* ---------- 검색 ---------- */
+.search-box{
+  display:flex; gap:6px; margin-bottom:16px;
+}
+.search-box input{
+  flex:1; background:var(--bg-panel); border:1px solid var(--line);
+  color:var(--text-main); border-radius:999px; padding:9px 14px; font-size:13px;
+  font-family:var(--font-body);
+}
+.search-box input:focus{ outline:2px solid var(--accent-teal); outline-offset:1px; }
+.search-box button{ padding:8px 14px; }
 .board-group{margin-bottom:6px;}
 .board-group-title{
   font-size:12px; color:var(--text-dim);
@@ -253,6 +265,8 @@ body{
 .post-detail h1{font-size:22px; margin:0 0 8px;}
 .post-detail .meta{color:var(--text-dim); font-size:13px; margin-bottom:16px; font-family:var(--font-mono);}
 .post-detail img{max-width:100%; border-radius:10px; margin:14px 0;}
+.post-detail img.detail-img{ cursor:zoom-in; transition:opacity .15s ease; }
+.post-detail img.detail-img:hover{ opacity:.85; }
 .post-detail .content-text{white-space:pre-wrap; line-height:1.6;}
 .post-detail .admin-actions{margin-top:20px; display:flex; gap:8px;}
 
@@ -320,3 +334,29 @@ body{
 }
 .manage-row-actions button:hover{color:var(--accent-teal); background:var(--bg-panel);}
 .manage-row-actions button.danger:hover{color:var(--accent-rose);}
+
+/* ---------- 이미지 확대보기(라이트박스) ---------- */
+.lightbox{
+  position:fixed; inset:0; background:rgba(0,0,0,.92);
+  display:flex; align-items:center; justify-content:center;
+  z-index:100;
+}
+.lightbox img{
+  max-width:90vw; max-height:88vh; border-radius:8px;
+  box-shadow:0 10px 40px rgba(0,0,0,.6);
+}
+.lightbox-close{
+  position:absolute; top:18px; right:22px;
+  background:rgba(255,255,255,.08); border:none; color:#fff;
+  font-size:20px; width:40px; height:40px; border-radius:50%; cursor:pointer;
+}
+.lightbox-close:hover{ background:rgba(255,255,255,.2); }
+.lightbox-nav{
+  position:absolute; top:50%; transform:translateY(-50%);
+  background:rgba(255,255,255,.08); border:none; color:#fff;
+  font-size:30px; width:52px; height:52px; border-radius:50%; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+.lightbox-nav:hover{ background:rgba(255,255,255,.22); }
+.lightbox-prev{ left:18px; }
+.lightbox-next{ right:18px; }

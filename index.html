@@ -36,6 +36,11 @@
       <div class="profile-sub">개인 팬 아카이브 홈페이지</div>
     </div>
 
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="제목/내용 검색">
+      <button id="searchBtn" class="btn btn-ghost">🔍</button>
+    </div>
+
     <nav id="boardTree" class="board-tree"></nav>
 
     <button id="manageBoardsBtn" class="btn btn-ghost manage-toggle-btn hidden">⚙ 게시판 관리</button>
@@ -131,6 +136,12 @@
     <button id="migrateImagesBtn" class="btn btn-ghost">🔄 전체 게시글 이미지 재업로드 시작</button>
     <div id="migrateStatus" class="hint-text"></div>
     <div id="migrateLog" class="manage-list"></div>
+
+    <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+      <h3 style="font-size:14px; margin:0;">전체 백업</h3>
+    </div>
+    <p class="hint-text">모든 게시글과 게시판 구조를 JSON 파일로 내려받아요. 가끔 저장해두면 안심돼요.</p>
+    <button id="backupBtn" class="btn btn-ghost">💾 전체 백업 다운로드</button>
   </div>
 </div>
 
@@ -168,6 +179,14 @@
       <button id="moveConfirmBtn" class="btn btn-primary">이동하기</button>
     </div>
   </div>
+</div>
+
+<!-- 이미지 확대보기 -->
+<div id="lightbox" class="lightbox hidden">
+  <button id="lightboxClose" class="lightbox-close" title="닫기">✕</button>
+  <button id="lightboxPrev" class="lightbox-nav lightbox-prev hidden" title="이전">‹</button>
+  <img id="lightboxImg" src="" alt="">
+  <button id="lightboxNext" class="lightbox-nav lightbox-next hidden" title="다음">›</button>
 </div>
 
 <script type="module" src="firebase-config.js"></script>
