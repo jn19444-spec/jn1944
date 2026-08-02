@@ -958,6 +958,66 @@ el("backupBtn").addEventListener("click", async () => {
   }
 });
 
+// ---------- 플레이리스트 ----------
+el("playlistBtn").addEventListener("click", () => {
+  const panel = el("playlistPanel");
+  const willOpen = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden");
+  if (willOpen) loadPlaylist();
+});
+el("playlistCloseBtn").addEventListener("click", () => el("playlistPanel").classList.add("hidden"));
+document.addEventListener("click", (e) => {
+  const panel = el("playlistPanel");
+  if (panel.classList.contains("hidden")) return;
+  if (panel.contains(e.target) || e.target === el("playlistBtn")) return;
+  panel.classList.add("hidden");
+});
+
+async function loadPlaylist() {
+  el("playlistAddRow").classList.toggle("hidden", !isAdmin);
+  const listEl = el("playlistList");
+  listEl.innerHTML = "불러오는 중...";
+  const snap = await getDocs(query(collection(db, "playlist"), orderBy("order", "asc"))).catch(() => null);
+  if (!snap || snap.empty) {
+    listEl.innerHTML = `<p class="playlist-empty">아직 추가된 노래가 없어요.</p>`;
+    return;
+  }
+  listEl.innerHTML = "";
+  snap.forEach(docSnap => {
+    const p = docSnap.data();
+    const item = document.createElement("div");
+    item.className = "playlist-item";
+    item.innerHTML = `
+      <a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">🎵 ${escapeHtml(p.title || p.url)}</a>
+      ${isAdmin ? `<button data-act="del" title="삭제">✕</button>` : ""}
+    `;
+    if (isAdmin) {
+      item.querySelector('[data-act="del"]').addEventListener("click", async () => {
+        if (!confirm(`"${p.title || p.url}"을(를) 목록에서 지울까요?`)) return;
+        await deleteDoc(docSnap.ref);
+        loadPlaylist();
+      });
+    }
+    listEl.appendChild(item);
+  });
+}
+
+el("playlistAddBtn").addEventListener("click", addPlaylistItem);
+[el("playlistTitleInput"), el("playlistUrlInput")].forEach(inp => {
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") addPlaylistItem(); });
+});
+
+async function addPlaylistItem() {
+  const title = el("playlistTitleInput").value.trim();
+  let url = el("playlistUrlInput").value.trim();
+  if (!url) return;
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url; // 프로토콜 빠뜨려도 알아서 붙여줌
+  await addDoc(collection(db, "playlist"), { title, url, order: Date.now(), addedAt: serverTimestamp() });
+  el("playlistTitleInput").value = "";
+  el("playlistUrlInput").value = "";
+  loadPlaylist();
+}
+
 // ---------- 유틸 ----------
 function getImages(p) {
   if (Array.isArray(p.imageUrls) && p.imageUrls.length) return p.imageUrls;

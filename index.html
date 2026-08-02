@@ -17,6 +17,7 @@
       <button id="homeBtn" class="brand-name-btn">+구구+</button>
     </div>
     <div class="topbar-actions">
+      <button id="playlistBtn" class="btn btn-ghost">🎵 플레이리스트</button>
       <span id="whoami" class="whoami"></span>
       <button id="adminMenuBtn" class="btn btn-ghost hidden">🛠 관리자 메뉴 <span id="adminMenuPendingBadge" class="pending-badge hidden"></span></button>
       <button id="signupBtn" class="btn btn-ghost">회원가입</button>
@@ -25,6 +26,20 @@
     </div>
   </div>
 </header>
+
+<!-- 플레이리스트 (항상 상단바에서 열 수 있는 고정 창) -->
+<div id="playlistPanel" class="playlist-panel hidden">
+  <div class="playlist-panel-header">
+    <h3>🎵 플레이리스트</h3>
+    <button id="playlistCloseBtn" class="btn btn-ghost">닫기</button>
+  </div>
+  <div id="playlistList" class="playlist-list"></div>
+  <div id="playlistAddRow" class="playlist-add-row hidden">
+    <input type="text" id="playlistTitleInput" placeholder="노래 제목 (선택)">
+    <input type="text" id="playlistUrlInput" placeholder="링크 (유튜브 등)">
+    <button id="playlistAddBtn" class="btn btn-primary">➕ 추가</button>
+  </div>
+</div>
 
 <div class="layout">
 
