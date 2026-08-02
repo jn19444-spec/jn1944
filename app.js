@@ -272,34 +272,38 @@ async function migrateAllImages() {
     const docSnap = posts[i];
     const p = docSnap.data();
     const images = getImages(p);
-    if (!images.length) continue;
+    if (!images.length || p.imagesResized) continue; // 이미 리사이즈 처리 끝난 글은 건너뜀
     statusEl.textContent = `처리 중... (${i + 1}/${posts.length}) "${p.title || ""}"`;
 
     const newUrls = [];
     let changed = false;
+    let postFailed = false;
     for (const url of images) {
-      if (url.includes("ibb.co")) { newUrls.push(url); continue; } // 이미 옮겨진 이미지는 건너뜀
       try {
         const resp = await fetch(url, { mode: "cors" });
         if (!resp.ok) throw new Error("이미지를 가져오지 못함");
         const blob = await resp.blob();
         const file = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-        const newUrl = await uploadToImgBB(file);
+        const newUrl = await uploadToImgBB(file); // 여기서 리사이즈 후 재업로드됨 (이미 작은 이미지/움짤은 원본 그대로 업로드)
         newUrls.push(newUrl);
         changed = true;
         imagesMigrated++;
       } catch (err) {
         newUrls.push(url); // 실패하면 원래 링크를 그대로 유지
         imagesFailed++;
+        postFailed = true;
         const row = document.createElement("div");
         row.className = "manage-row";
         row.innerHTML = `<span class="manage-row-label" style="color:var(--accent-rose); font-size:12px;">실패: "${escapeHtml(p.title || "")}" → ${escapeHtml(url)}</span>`;
         logEl.appendChild(row);
       }
     }
-    if (changed) {
-      await updateDoc(docSnap.ref, { imageUrls: newUrls });
-      postsChanged++;
+    const updates = {};
+    if (changed) updates.imageUrls = newUrls;
+    if (!postFailed) updates.imagesResized = true; // 실패한 이미지가 있으면 표시하지 않아서 다음 실행 때 다시 시도됨
+    if (Object.keys(updates).length) {
+      await updateDoc(docSnap.ref, updates);
+      if (changed) postsChanged++;
     }
   }
 
