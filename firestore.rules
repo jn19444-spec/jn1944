@@ -9,9 +9,8 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      // 비공개(private) 게시판 글은 로그인한 관리자만 읽을 수 있음
-      // 그 외 게시판 글은 누구나 읽을 수 있음
-      allow read: if resource.data.boardId != 'private' || request.auth != null;
+      // 비공개 게시글은 로그인한 관리자만 읽을 수 있음, 그 외는 누구나 읽을 수 있음
+      allow read: if resource.data.isPrivate != true || request.auth != null;
 
       // 글쓰기/수정/삭제는 로그인한 관리자만 가능
       allow create, update, delete: if request.auth != null;

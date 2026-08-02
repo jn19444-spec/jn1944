@@ -37,6 +37,7 @@ let currentUser = null;
 let currentBoardId = null;
 let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
+let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
 
 const el = (id) => document.getElementById(id);
 
@@ -49,7 +50,8 @@ onAuthStateChanged(auth, async (user) => {
   el("writeBtn").classList.toggle("hidden", !(user && currentBoard));
   el("manageBoardsBtn").classList.toggle("hidden", !user);
   await loadBoardConfig();
-  if (currentBoardId) loadPosts(currentBoardId);
+  if (currentBoardId === "__all__") loadAllPosts();
+  else if (currentBoardId) loadPosts(currentBoardId);
 });
 
 el("loginBtn").addEventListener("click", () => el("loginModal").classList.remove("hidden"));
@@ -109,6 +111,12 @@ function renderBoardTree() {
   const treeEl = el("boardTree");
   treeEl.innerHTML = "";
 
+  const allItem = document.createElement("div");
+  allItem.className = "board-item all-board-item" + (currentBoardId === "__all__" ? " active" : "");
+  allItem.innerHTML = "📋 전체 게시판";
+  allItem.addEventListener("click", selectAllBoards);
+  treeEl.appendChild(allItem);
+
   boardRows.forEach(row => {
     if (row.type === "divider") {
       const hr = document.createElement("div");
@@ -144,6 +152,16 @@ function selectBoard(row) {
   loadPosts(row.id);
 }
 
+function selectAllBoards() {
+  currentBoardId = "__all__";
+  currentBoard = null;
+  el("currentBoardName").textContent = "📋 전체 게시판";
+  el("writeBtn").classList.add("hidden"); // 전체 게시판에서는 글쓰기 불가(게시판을 골라야 함)
+  showListView();
+  renderBoardTree();
+  loadAllPosts();
+}
+
 // ---------- 뷰 전환 ----------
 function showListView() {
   el("listView").classList.remove("hidden");
@@ -155,6 +173,7 @@ function showWriteView() {
   el("writeView").classList.remove("hidden");
   el("detailView").classList.add("hidden");
   el("writeBoardLabel").textContent = currentBoard ? currentBoard.name : "";
+  el("writeViewTitle").textContent = editingPostId ? "글 수정" : "글쓰기";
 }
 function showDetailView() {
   el("listView").classList.add("hidden");
@@ -162,30 +181,83 @@ function showDetailView() {
   el("detailView").classList.remove("hidden");
 }
 
-el("writeBtn").addEventListener("click", showWriteView);
-el("cancelWriteBtn").addEventListener("click", showListView);
-el("backBtn").addEventListener("click", () => { showListView(); loadPosts(currentBoardId); });
+el("writeBtn").addEventListener("click", () => {
+  editingPostId = null;
+  el("postForm").reset();
+  showWriteView();
+});
+el("cancelWriteBtn").addEventListener("click", () => { editingPostId = null; showListView(); });
+el("backBtn").addEventListener("click", () => {
+  showListView();
+  if (currentBoardId === "__all__") loadAllPosts();
+  else if (currentBoardId) loadPosts(currentBoardId);
+});
 
-// ---------- 글쓰기 ----------
+// ---------- 글쓰기 / 수정 ----------
 el("postForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return;
   const title = el("postTitle").value.trim();
   const content = el("postContent").value.trim();
   const imageUrls = el("postImages").value.split("\n").map(s => s.trim()).filter(Boolean);
+
+  if (editingPostId) {
+    await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls });
+    const idToReopen = editingPostId;
+    editingPostId = null;
+    el("postForm").reset();
+    openPost(idToReopen);
+    return;
+  }
+
   await addDoc(collection(db, "posts"), {
     boardId: currentBoardId,
     title, content, imageUrls,
     author: currentUser.email.split("@")[0],
     createdAt: serverTimestamp(),
     views: 0,
+    isPrivate: !!(currentBoard && currentBoard.isPrivate),
   });
   el("postForm").reset();
   showListView();
   loadPosts(currentBoardId);
 });
 
-// ---------- 목록 불러오기 ----------
+function renderPostCard(docSnap, opts) {
+  const p = docSnap.data();
+  const images = getImages(p);
+  const card = document.createElement("div");
+  card.className = "post-card";
+  card.innerHTML = `
+    <div class="post-card-body">
+      <div class="post-card-meta">
+        ${opts && opts.boardName ? `<span class="board-tag">${escapeHtml(opts.boardName)}</span>` : ""}
+        <span>${escapeHtml(p.author || "익명")}</span>
+        <span>·</span>
+        <span>${formatDate(p.createdAt)}</span>
+      </div>
+      <div class="post-card-title">${escapeHtml(p.title)}</div>
+      <div class="post-card-preview">${escapeHtml(p.content)}</div>
+      <div class="post-card-stats"><span>👁 ${p.views || 0}</span></div>
+    </div>
+    ${images.length ? `<div class="post-card-thumb-wrap">
+        <img class="post-card-thumb" src="${images[0]}" alt="">
+        ${images.length > 1 ? `<span class="thumb-count">${images.length}</span>` : ""}
+      </div>` : ""}
+  `;
+  card.addEventListener("click", () => openPost(docSnap.id));
+  return card;
+}
+
+function sortByDateDesc(docs, getData) {
+  return docs.slice().sort((a, b) => {
+    const ta = getData(a).createdAt ? getData(a).createdAt.toMillis() : 0;
+    const tb = getData(b).createdAt ? getData(b).createdAt.toMillis() : 0;
+    return tb - ta;
+  });
+}
+
+// ---------- 목록 불러오기 (게시판 1개) ----------
 async function loadPosts(boardId) {
   const listEl = el("postList");
   listEl.innerHTML = "";
@@ -202,35 +274,32 @@ async function loadPosts(boardId) {
     return;
   }
   el("emptyState").classList.add("hidden");
-  const sortedDocs = snap.docs.slice().sort((a, b) => {
-    const ta = a.data().createdAt ? a.data().createdAt.toMillis() : 0;
-    const tb = b.data().createdAt ? b.data().createdAt.toMillis() : 0;
-    return tb - ta; // 최신순
-  });
-  sortedDocs.forEach(docSnap => {
-    const p = docSnap.data();
-    const images = getImages(p);
-    const card = document.createElement("div");
-    card.className = "post-card";
-    card.innerHTML = `
-      <div class="post-card-body">
-        <div class="post-card-meta">
-          <span>${escapeHtml(p.author || "익명")}</span>
-          <span>·</span>
-          <span>${formatDate(p.createdAt)}</span>
-        </div>
-        <div class="post-card-title">${escapeHtml(p.title)}</div>
-        <div class="post-card-preview">${escapeHtml(p.content)}</div>
-        <div class="post-card-stats"><span>👁 ${p.views || 0}</span></div>
-      </div>
-      ${images.length ? `<div class="post-card-thumb-wrap">
-          <img class="post-card-thumb" src="${images[0]}" alt="">
-          ${images.length > 1 ? `<span class="thumb-count">${images.length}</span>` : ""}
-        </div>` : ""}
-    `;
-    card.addEventListener("click", () => openPost(docSnap.id));
-    listEl.appendChild(card);
-  });
+  const sortedDocs = sortByDateDesc(snap.docs, d => d.data());
+  sortedDocs.forEach(docSnap => listEl.appendChild(renderPostCard(docSnap)));
+}
+
+// ---------- 목록 불러오기 (전체 게시판) ----------
+async function loadAllPosts() {
+  const listEl = el("postList");
+  listEl.innerHTML = "";
+  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || currentUser));
+  let entries = [];
+  for (const b of boards) {
+    const q = query(collection(db, "posts"), where("boardId", "==", b.id));
+    try {
+      const snap = await getDocs(q);
+      snap.forEach(docSnap => entries.push({ docSnap, boardName: b.name }));
+    } catch (err) {
+      // 개별 게시판 조회 실패는 건너뛰고 나머지는 계속 보여줌
+    }
+  }
+  if (!entries.length) {
+    el("emptyState").classList.remove("hidden");
+    return;
+  }
+  el("emptyState").classList.add("hidden");
+  entries = sortByDateDesc(entries, e => e.docSnap.data());
+  entries.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
 }
 
 // ---------- 상세보기 ----------
@@ -248,6 +317,8 @@ async function openPost(postId) {
     ${images.map(u => `<img src="${u}" alt="">`).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
     ${currentUser ? `<div class="admin-actions">
+      <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
+      <button id="movePostBtn" class="btn btn-ghost">게시판 이동</button>
       <button id="deletePostBtn" class="btn btn-ghost">삭제하기</button>
     </div>` : ""}
   `;
@@ -258,10 +329,47 @@ async function openPost(postId) {
       if (!confirm("이 게시글을 삭제할까요?")) return;
       await deleteDoc(ref);
       showListView();
-      loadPosts(currentBoardId);
+      if (currentBoardId === "__all__") loadAllPosts(); else loadPosts(currentBoardId);
     });
+
+    el("editPostBtn").addEventListener("click", () => {
+      editingPostId = postId;
+      el("postTitle").value = p.title || "";
+      el("postContent").value = p.content || "";
+      el("postImages").value = images.join("\n");
+      const boardOfPost = boardRows.find(b => b.id === p.boardId);
+      currentBoard = boardOfPost || currentBoard;
+      showWriteView();
+    });
+
+    el("movePostBtn").addEventListener("click", () => openMoveModal(postId, p.boardId));
   }
 }
+
+// ---------- 게시글 이동 ----------
+function openMoveModal(postId, currentPostBoardId) {
+  const sel = el("moveBoardSelect");
+  sel.innerHTML = "";
+  boardRows.filter(r => r.type === "board").forEach(b => {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = (b.isPrivate ? "🔒 " : "") + b.name;
+    if (b.id === currentPostBoardId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  el("moveModal").classList.remove("hidden");
+  el("moveConfirmBtn").onclick = async () => {
+    const targetId = sel.value;
+    const targetBoard = boardRows.find(b => b.id === targetId);
+    await updateDoc(doc(db, "posts", postId), {
+      boardId: targetId,
+      isPrivate: !!(targetBoard && targetBoard.isPrivate),
+    });
+    el("moveModal").classList.add("hidden");
+    openPost(postId);
+  };
+}
+el("moveCancelBtn").addEventListener("click", () => el("moveModal").classList.add("hidden"));
 
 // ---------- 게시판 관리 패널 ----------
 el("manageBoardsBtn").addEventListener("click", () => {
@@ -310,6 +418,7 @@ function renderManageList() {
     rowDiv.innerHTML = `
       <span class="manage-row-label">${escapeHtml(label)}</span>
       <span class="manage-row-actions">
+        ${row.type === "board" ? `<button data-act="toggle-private">${row.isPrivate ? "공개로 전환" : "비공개로 전환"}</button>` : ""}
         <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
         <button data-act="down" ${idx === boardRows.length - 1 ? "disabled" : ""}>▼</button>
         <button data-act="del" class="danger">삭제</button>
@@ -318,8 +427,26 @@ function renderManageList() {
     rowDiv.querySelector('[data-act="up"]').addEventListener("click", () => moveRow(idx, -1));
     rowDiv.querySelector('[data-act="down"]').addEventListener("click", () => moveRow(idx, 1));
     rowDiv.querySelector('[data-act="del"]').addEventListener("click", () => deleteRow(row));
+    if (row.type === "board") {
+      rowDiv.querySelector('[data-act="toggle-private"]').addEventListener("click", () => togglePrivate(row));
+    }
     listEl.appendChild(rowDiv);
   });
+}
+
+async function togglePrivate(row) {
+  const newVal = !row.isPrivate;
+  const msg = newVal
+    ? `"${row.name}" 게시판을 비공개로 바꿀까요? 이 게시판의 글도 모두 비공개로 바뀌어요.`
+    : `"${row.name}" 게시판을 공개로 바꿀까요? 이 게시판의 글도 모두 공개로 바뀌어요.`;
+  if (!confirm(msg)) return;
+  await updateDoc(doc(db, "boards", row.id), { isPrivate: newVal });
+  const postsSnap = await getDocs(query(collection(db, "posts"), where("boardId", "==", row.id)));
+  for (const p of postsSnap.docs) {
+    await updateDoc(p.ref, { isPrivate: newVal });
+  }
+  await loadBoardConfig();
+  renderManageList();
 }
 
 async function moveRow(idx, dir) {
