@@ -59,6 +59,10 @@ let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판
 let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 
+const POSTS_PER_PAGE = 15; // 한 페이지에 보여줄 게시글 수
+let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글들 (최신순 정렬됨)
+let currentListPage = 1;
+
 const el = (id) => document.getElementById(id);
 
 // ---------- 인증 상태 ----------
@@ -502,6 +506,7 @@ async function performSearch() {
 
   const listEl = el("postList");
   listEl.innerHTML = "";
+  el("pagination").classList.add("hidden");
   el("emptyState").classList.add("hidden");
 
   const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
@@ -525,7 +530,7 @@ async function performSearch() {
     return;
   }
   entries = sortByDateDesc(entries, e => e.docSnap.data());
-  entries.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
+  showPostListPage(entries, 1);
 }
 
 el("writeBtn").addEventListener("click", () => {
@@ -663,9 +668,64 @@ function renderPostCard(docSnap, opts) {
 
 function sortByDateDesc(docs, getData) {
   return docs.slice().sort((a, b) => {
-    const ta = getData(a).createdAt ? getData(a).createdAt.toMillis() : 0;
-    const tb = getData(b).createdAt ? getData(b).createdAt.toMillis() : 0;
+    // 방금 작성돼서 서버 타임스탬프가 아직 확정 안 된 글(null)은 최신 글로 간주해요.
+    // (그렇지 않으면 새 글이 정렬 맨 뒤로 밀려서 페이지 끝에 숨어버려요)
+    const ta = getData(a).createdAt ? getData(a).createdAt.toMillis() : Date.now();
+    const tb = getData(b).createdAt ? getData(b).createdAt.toMillis() : Date.now();
     return tb - ta;
+  });
+}
+
+// ---------- 페이지네이션 ----------
+// entries: [{docSnap, boardName?}, ...] 최신순으로 정렬된 전체 목록
+function showPostListPage(entries, page) {
+  currentListEntries = entries;
+  currentListPage = page;
+
+  const listEl = el("postList");
+  listEl.innerHTML = "";
+  const start = (page - 1) * POSTS_PER_PAGE;
+  const pageItems = entries.slice(start, start + POSTS_PER_PAGE);
+  pageItems.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
+
+  renderPagination(entries.length, page);
+}
+
+function renderPagination(totalItems, page) {
+  const pagEl = el("pagination");
+  const totalPages = Math.ceil(totalItems / POSTS_PER_PAGE);
+  if (totalPages <= 1) {
+    pagEl.classList.add("hidden");
+    pagEl.innerHTML = "";
+    return;
+  }
+  pagEl.classList.remove("hidden");
+
+  const goTo = (p) => {
+    if (p < 1 || p > totalPages || p === page) return;
+    showPostListPage(currentListEntries, p);
+    el("listView").scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  let html = `<button data-p="${page - 1}" ${page === 1 ? "disabled" : ""}>‹</button>`;
+
+  // 페이지 번호가 너무 많으면 현재 페이지 주변 + 처음/끝만 보여줘요.
+  const pages = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages || Math.abs(p - page) <= 2) pages.push(p);
+  }
+  let prev = 0;
+  for (const p of pages) {
+    if (prev && p - prev > 1) html += `<span class="pagination-ellipsis">…</span>`;
+    html += `<button data-p="${p}" class="${p === page ? "active" : ""}">${p}</button>`;
+    prev = p;
+  }
+
+  html += `<button data-p="${page + 1}" ${page === totalPages ? "disabled" : ""}>›</button>`;
+  pagEl.innerHTML = html;
+
+  pagEl.querySelectorAll("button[data-p]").forEach(btn => {
+    btn.addEventListener("click", () => goTo(Number(btn.dataset.p)));
   });
 }
 
@@ -673,6 +733,7 @@ function sortByDateDesc(docs, getData) {
 async function loadPosts(boardId) {
   const listEl = el("postList");
   listEl.innerHTML = "";
+  el("pagination").classList.add("hidden");
   const q = query(collection(db, "posts"), where("boardId", "==", boardId));
   let snap;
   try {
@@ -687,13 +748,14 @@ async function loadPosts(boardId) {
   }
   el("emptyState").classList.add("hidden");
   const sortedDocs = sortByDateDesc(snap.docs, d => d.data());
-  sortedDocs.forEach(docSnap => listEl.appendChild(renderPostCard(docSnap)));
+  showPostListPage(sortedDocs.map(docSnap => ({ docSnap })), 1);
 }
 
 // ---------- 목록 불러오기 (전체 게시판) ----------
 async function loadAllPosts() {
   const listEl = el("postList");
   listEl.innerHTML = "";
+  el("pagination").classList.add("hidden");
   const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
   let entries = [];
   for (const b of boards) {
@@ -711,7 +773,7 @@ async function loadAllPosts() {
   }
   el("emptyState").classList.add("hidden");
   entries = sortByDateDesc(entries, e => e.docSnap.data());
-  entries.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
+  showPostListPage(entries, 1);
 }
 
 // ---------- 상세보기 ----------

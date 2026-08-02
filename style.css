@@ -209,6 +209,24 @@ body{
   padding:60px 0; font-size:14px;
 }
 
+/* ---------- 페이지네이션 ---------- */
+.pagination{
+  display:flex; align-items:center; justify-content:center;
+  gap:4px; margin-top:24px; flex-wrap:wrap;
+}
+.pagination button{
+  min-width:34px; height:34px; padding:0 8px;
+  border-radius:8px; border:1px solid var(--line);
+  background:var(--bg-panel); color:var(--text-main);
+  font-size:13px; cursor:pointer; font-family:var(--font-mono);
+}
+.pagination button:hover:not(:disabled){ border-color:var(--accent-teal); color:var(--accent-teal); }
+.pagination button.active{
+  background:var(--accent-teal); border-color:var(--accent-teal); color:#04211e; font-weight:700;
+}
+.pagination button:disabled{ opacity:.35; cursor:default; }
+.pagination-ellipsis{ color:var(--text-dim); padding:0 4px; font-size:13px; }
+
 /* ---------- post form ---------- */
 .post-form{
   display:flex; flex-direction:column; gap:12px;
