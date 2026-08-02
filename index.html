@@ -17,7 +17,6 @@
       <button id="homeBtn" class="brand-name-btn">+구구+</button>
     </div>
     <div class="topbar-actions">
-      <button id="playlistBtn" class="btn btn-ghost">🎵 플레이리스트</button>
       <span id="whoami" class="whoami"></span>
       <button id="adminMenuBtn" class="btn btn-ghost hidden">🛠 관리자 메뉴 <span id="adminMenuPendingBadge" class="pending-badge hidden"></span></button>
       <button id="signupBtn" class="btn btn-ghost">회원가입</button>
@@ -91,41 +90,6 @@
     </section>
 
   </main>
-
-  <!-- 우측 플레이리스트/플레이어 패널 -->
-  <aside class="player-rail" id="playerRail">
-    <div class="player-rail-header">
-      <h3>🎵 플레이리스트</h3>
-    </div>
-
-    <!-- 재생 화면 (선택한 곡이 여기서 바로 재생돼요) -->
-    <div id="playlistPlayer" class="playlist-player hidden">
-      <div id="playlistPlayerEmbed" class="playlist-player-embed"></div>
-      <div class="playlist-player-titlebar">
-        <div id="playlistPlayerTitle" class="playlist-player-title"></div>
-        <button id="playlistStopBtn" class="btn btn-ghost btn-sm" title="정지">✕</button>
-      </div>
-    </div>
-
-    <!-- 등록/수정 폼 (관리자 전용) -->
-    <div id="playlistAddRow" class="playlist-add-row hidden">
-      <input type="text" id="playlistTitleInput" placeholder="노래 제목">
-      <input type="text" id="playlistUrlInput" placeholder="유튜브 등 링크">
-      <div class="image-upload-box">
-        <label for="playlistThumbFile" class="btn btn-ghost image-upload-label">🖼 썸네일</label>
-        <input type="file" id="playlistThumbFile" accept="image/*" class="hidden">
-        <span id="playlistThumbStatus" class="image-upload-status hidden"></span>
-        <div id="playlistThumbPreview" class="image-preview-list"></div>
-      </div>
-      <div class="playlist-add-actions">
-        <button id="playlistAddBtn" class="btn btn-primary">➕ 등록</button>
-        <button id="playlistAddCancelBtn" class="btn btn-ghost hidden">취소</button>
-      </div>
-    </div>
-
-    <!-- 곡 목록 -->
-    <div id="playlistList" class="playlist-list"></div>
-  </aside>
 </div>
 
 <!-- 로그인 모달 -->
@@ -190,6 +154,20 @@
       <button id="memberManageCloseBtn" class="btn btn-ghost">닫기</button>
     </div>
     <p class="hint-text">승인대기 회원은 위에 먼저 나와요. 삭제하면 그 계정으로 다시 로그인할 수 없어요.</p>
+
+    <div class="member-toolbar">
+      <input type="text" id="memberSearchInput" placeholder="🔍 아이디로 검색">
+      <div class="member-filter-tabs">
+        <button class="member-filter-tab active" data-filter="all">전체</button>
+        <button class="member-filter-tab" data-filter="pending">승인대기</button>
+        <button class="member-filter-tab" data-filter="approved">승인됨</button>
+      </div>
+    </div>
+    <div class="member-summary">
+      <span id="memberSummaryText" class="hint-text" style="margin:0;"></span>
+      <button id="approveAllBtn" class="btn btn-ghost btn-sm hidden">✓ 대기 회원 전체 승인</button>
+    </div>
+
     <div id="memberList" class="manage-list"></div>
   </div>
 </div>

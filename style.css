@@ -72,22 +72,18 @@ body{
   font-weight:700;
 }
 .btn-primary:hover{filter:brightness(1.08);}
+.btn-sm{ padding:4px 9px; font-size:11px; flex-shrink:0; }
 .back-btn{margin-bottom:16px;}
 
 /* ---------- layout ---------- */
 .layout{
-  max-width:1440px; margin:0 auto;
-  display:grid; grid-template-columns:250px 1fr 300px;
+  max-width:1160px; margin:0 auto;
+  display:grid; grid-template-columns:250px 1fr;
   gap:24px; padding:24px 20px 80px;
   align-items:start;
 }
-@media (max-width:1100px){
-  .layout{grid-template-columns:250px 1fr;}
-  .player-rail{grid-column:1 / -1;}
-}
 @media (max-width:820px){
   .layout{grid-template-columns:1fr;}
-  .player-rail{grid-column:auto;}
 }
 
 /* ---------- sidebar ---------- */
@@ -316,105 +312,37 @@ body{
 .error-text{color:var(--accent-rose); font-size:12px; margin:0;}
 .hint-text{color:var(--text-dim); font-size:12px; margin:8px 0 12px;}
 
-/* ---------- 우측 플레이리스트 패널 (항상 보이는 음악 플레이어) ---------- */
-.player-rail{
-  background:var(--bg-panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  padding:16px;
-  position:sticky; top:88px;
-  max-height:calc(100vh - 108px);
-  display:flex; flex-direction:column; gap:12px;
-  overflow-y:auto;
-}
-.player-rail-header h3{
-  margin:0; font-family:var(--font-display); font-weight:400; font-size:17px;
-}
 
-.playlist-player{ display:flex; flex-direction:column; gap:8px; }
-.playlist-player-embed{
-  position:relative; width:100%; height:92px;
-  background:linear-gradient(135deg, var(--bg-panel-2), #000);
-  border-radius:10px; overflow:hidden;
-}
-.playlist-player-embed iframe.audio-only-frame{
-  position:absolute; width:2px; height:2px; left:-9999px; top:-9999px;
-  opacity:0; pointer-events:none; border:0;
-}
-.audio-player-card{
-  position:absolute; inset:0; display:flex; align-items:center; gap:14px; padding:0 16px;
-}
-.audio-player-thumb{ width:64px; height:64px; border-radius:8px; object-fit:cover; flex-shrink:0; }
-.audio-player-icon{
-  width:64px; height:64px; border-radius:8px; flex-shrink:0;
-  background:var(--bg-panel-2); display:flex; align-items:center; justify-content:center; font-size:26px;
-}
-.audio-player-bars{ display:flex; align-items:flex-end; gap:3px; height:22px; }
-.audio-player-bars span{
-  width:4px; background:var(--accent-teal); border-radius:2px;
-  animation: audioBarBounce 1s ease-in-out infinite;
-}
-.audio-player-bars span:nth-child(2){ animation-delay:0.2s; }
-.audio-player-bars span:nth-child(3){ animation-delay:0.4s; }
-@keyframes audioBarBounce{ 0%,100%{ height:6px; } 50%{ height:20px; } }
-.playlist-player-titlebar{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-}
-.playlist-player-title{ font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.btn-sm{ padding:4px 9px; font-size:11px; flex-shrink:0; }
-
-.playlist-add-row{
-  display:flex; flex-direction:column; gap:8px;
-  border-bottom:1px solid var(--line); padding-bottom:14px;
-}
-.playlist-add-row input{
-  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-main);
-  border-radius:8px; padding:9px 12px; font-size:13px; font-family:var(--font-body);
-}
-.playlist-add-row input:focus{ outline:2px solid var(--accent-teal); outline-offset:1px; }
-.playlist-add-actions{ display:flex; gap:8px; }
-.playlist-add-actions .btn{ flex:1; }
-
-.playlist-list{ display:flex; flex-direction:column; gap:6px; }
-.playlist-empty{ color:var(--text-dim); font-size:12px; text-align:center; padding:20px 0; }
-
-.playlist-row{
-  display:flex; align-items:center; gap:10px;
-  padding:7px; border-radius:10px; cursor:pointer;
-  border:1px solid transparent;
-  transition:border-color .15s ease, background .15s ease;
-}
-.playlist-row:hover{ background:var(--bg-panel-2); }
-.playlist-row.playing{
-  border-color:var(--accent-teal); background:var(--bg-panel-2);
-}
-.playlist-row-thumb{
-  width:44px; height:44px; border-radius:8px; object-fit:cover; flex-shrink:0;
-  background:var(--bg-panel-2);
-}
-.playlist-row-noimg{
-  width:44px; height:44px; border-radius:8px; flex-shrink:0;
-  background:var(--bg-panel-2); display:flex; align-items:center; justify-content:center;
-  font-size:16px; color:var(--text-dim);
-}
-.playlist-row-title{
-  flex:1; min-width:0; font-size:13px;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.playlist-row.playing .playlist-row-title{ color:var(--accent-teal); font-weight:700; }
-.playlist-row-actions{ display:flex; gap:2px; flex-shrink:0; }
-.playlist-row-actions button{
-  background:transparent; border:none; color:var(--text-dim);
-  cursor:pointer; font-size:12px; padding:4px 6px; border-radius:6px;
-}
-.playlist-row-actions button:hover{ color:var(--accent-teal); background:var(--bg-panel); }
-.playlist-row-actions button.danger:hover{ color:var(--accent-rose); }
 
 /* ---------- 회원 관리 ---------- */
 .pending-badge{
   display:inline-block;
   background:var(--accent-rose); color:#fff; font-size:11px; font-weight:700;
   border-radius:999px; padding:1px 7px; margin-left:4px; vertical-align:middle;
+}
+.member-toolbar{
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  margin-bottom:10px;
+}
+.member-toolbar #memberSearchInput{
+  flex:1; min-width:140px;
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-main);
+  border-radius:8px; padding:8px 12px; font-size:13px; font-family:var(--font-body);
+}
+.member-toolbar #memberSearchInput:focus{ outline:2px solid var(--accent-teal); outline-offset:1px; }
+.member-filter-tabs{ display:flex; gap:4px; flex-shrink:0; }
+.member-filter-tab{
+  background:transparent; border:1px solid var(--line); color:var(--text-dim);
+  border-radius:999px; padding:6px 12px; font-size:12px; cursor:pointer;
+  transition:all .15s ease;
+}
+.member-filter-tab:hover{ color:var(--accent-teal); border-color:var(--accent-teal); }
+.member-filter-tab.active{
+  background:var(--accent-teal); border-color:var(--accent-teal); color:#04211e; font-weight:700;
+}
+.member-summary{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  margin-bottom:10px;
 }
 .member-row-info{ display:flex; flex-direction:column; gap:4px; }
 .member-row-email{ font-size:13px; font-weight:700; }

@@ -121,7 +121,6 @@ onAuthStateChanged(auth, async (user) => {
   await loadBoardConfig();
   if (currentBoardId === "__all__") loadAllPosts();
   else if (currentBoardId) loadPosts(currentBoardId);
-  loadPlaylist();
 });
 
 el("loginBtn").addEventListener("click", () => el("loginModal").classList.remove("hidden"));
@@ -215,6 +214,38 @@ el("openMemberManageBtn").addEventListener("click", () => {
 });
 el("memberManageCloseBtn").addEventListener("click", () => el("memberManageModal").classList.add("hidden"));
 
+let allMembers = []; // Firestore에서 불러온 전체 회원 (필터/검색은 이 배열로 클라이언트에서 처리)
+let memberFilter = "all"; // all | pending | approved
+let memberSearchTerm = "";
+
+el("memberSearchInput").addEventListener("input", (e) => {
+  memberSearchTerm = e.target.value.trim().toLowerCase();
+  renderMemberList();
+});
+
+document.querySelectorAll(".member-filter-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".member-filter-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    memberFilter = tab.dataset.filter;
+    renderMemberList();
+  });
+});
+
+el("approveAllBtn").addEventListener("click", async () => {
+  const pending = allMembers.filter(m => m.approved === false);
+  if (!pending.length) return;
+  if (!confirm(`승인대기 중인 회원 ${pending.length}명을 한번에 승인할까요?`)) return;
+  const btn = el("approveAllBtn");
+  btn.disabled = true;
+  try {
+    await Promise.all(pending.map(m => updateDoc(doc(db, "members", m.id), { approved: true })));
+    await loadMemberList();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 el("migrateImagesBtn").addEventListener("click", migrateAllImages);
 
 async function migrateAllImages() {
@@ -273,13 +304,35 @@ async function loadMemberList() {
   const listEl = el("memberList");
   listEl.innerHTML = "불러오는 중...";
   const snap = await getDocs(collection(db, "members"));
-  if (snap.empty) {
+  allMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  updatePendingBadge(allMembers.filter(m => m.approved === false).length);
+  renderMemberList();
+}
+
+function renderMemberList() {
+  const listEl = el("memberList");
+
+  if (!allMembers.length) {
     listEl.innerHTML = `<p class="empty-state">아직 가입한 회원이 없어요.</p>`;
-    updatePendingBadge(0);
+    el("memberSummaryText").textContent = "";
+    el("approveAllBtn").classList.add("hidden");
     return;
   }
 
-  let members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const pendingCount = allMembers.filter(m => m.approved === false).length;
+  el("memberSummaryText").textContent = `전체 ${allMembers.length}명 · 승인대기 ${pendingCount}명`;
+  el("approveAllBtn").classList.toggle("hidden", pendingCount === 0);
+
+  let members = allMembers.filter(m => {
+    if (memberFilter === "pending" && m.approved !== false) return false;
+    if (memberFilter === "approved" && m.approved === false) return false;
+    if (memberSearchTerm) {
+      const name = (m.username || m.email || m.id || "").toLowerCase();
+      if (!name.includes(memberSearchTerm)) return false;
+    }
+    return true;
+  });
+
   // 승인 대기 회원을 위로, 그다음 최근 가입순
   members.sort((a, b) => {
     const aPending = a.approved === false ? 0 : 1;
@@ -289,7 +342,11 @@ async function loadMemberList() {
     const bt = b.joinedAt && b.joinedAt.toDate ? b.joinedAt.toDate().getTime() : 0;
     return bt - at;
   });
-  updatePendingBadge(members.filter(m => m.approved === false).length);
+
+  if (!members.length) {
+    listEl.innerHTML = `<p class="empty-state">조건에 맞는 회원이 없어요.</p>`;
+    return;
+  }
 
   listEl.innerHTML = "";
   members.forEach(m => {
@@ -315,6 +372,8 @@ async function loadMemberList() {
 
     row.querySelector('[data-role="private"]').addEventListener("change", async (e) => {
       await updateDoc(doc(db, "members", m.id), { canViewPrivate: e.target.checked });
+      const found = allMembers.find(x => x.id === m.id);
+      if (found) found.canViewPrivate = e.target.checked;
     });
 
     const approveBtn = row.querySelector('[data-act="approve"]');
@@ -1045,232 +1104,6 @@ el("backupBtn").addEventListener("click", async () => {
     btn.textContent = originalText;
   }
 });
-
-// ---------- 플레이리스트 (우측에 항상 떠있는 패널) ----------
-let playlistThumbUrl = null; // 등록/수정 폼에서 업로드된 썸네일 URL
-let editingPlaylistId = null; // null이면 새 곡 등록, 값이 있으면 그 곡을 수정하는 중
-let currentPlayingId = null;
-
-// 상단 버튼은 모달을 여는 대신 우측 패널로 스크롤만 시켜줘요 (패널은 항상 떠있음).
-el("playlistBtn").addEventListener("click", () => {
-  el("playerRail").scrollIntoView({ behavior: "smooth", block: "start" });
-});
-
-el("playlistStopBtn").addEventListener("click", stopPlaylistPlayer);
-
-function stopPlaylistPlayer() {
-  el("playlistPlayer").classList.add("hidden");
-  el("playlistPlayerEmbed").innerHTML = "";
-  currentPlayingId = null;
-  document.querySelectorAll(".playlist-row.playing").forEach(r => r.classList.remove("playing"));
-}
-
-async function loadPlaylist() {
-  el("playlistAddRow").classList.toggle("hidden", !isAdmin);
-  const listEl = el("playlistList");
-  listEl.innerHTML = "불러오는 중...";
-  let snap;
-  try {
-    snap = await getDocs(query(collection(db, "playlist"), orderBy("order", "asc")));
-  } catch (err) {
-    listEl.innerHTML = `<p class="playlist-empty">목록을 불러오지 못했어요.<br>(${escapeHtml(err.code || err.message)})</p>`;
-    return;
-  }
-  if (snap.empty) {
-    listEl.innerHTML = `<p class="playlist-empty">아직 등록된 노래가 없어요.</p>`;
-    return;
-  }
-  listEl.innerHTML = "";
-  snap.forEach(docSnap => {
-    const p = docSnap.data();
-    const id = docSnap.id;
-    const row = document.createElement("div");
-    row.className = "playlist-row" + (id === currentPlayingId ? " playing" : "");
-    row.innerHTML = `
-      ${p.thumbnailUrl ? `<img class="playlist-row-thumb" src="${escapeHtml(p.thumbnailUrl)}" alt="">` : `<div class="playlist-row-noimg">🎵</div>`}
-      <div class="playlist-row-title">${escapeHtml(p.title || p.url)}</div>
-      ${isAdmin ? `<span class="playlist-row-actions">
-        <button data-act="edit" title="수정">✎</button>
-        <button data-act="delete" class="danger" title="삭제">✕</button>
-      </span>` : ""}
-    `;
-    row.addEventListener("click", (e) => {
-      if (e.target.closest("[data-act]")) return;
-      playPlaylistItem(p, id, row);
-    });
-    if (isAdmin) {
-      row.querySelector('[data-act="edit"]').addEventListener("click", (e) => {
-        e.stopPropagation();
-        startEditPlaylistItem(id, p);
-      });
-      row.querySelector('[data-act="delete"]').addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!confirm(`"${p.title || p.url}"을(를) 목록에서 지울까요?`)) return;
-        await deleteDoc(docSnap.ref);
-        if (id === currentPlayingId) stopPlaylistPlayer();
-        if (id === editingPlaylistId) cancelEditPlaylistItem();
-        loadPlaylist();
-      });
-    }
-    listEl.appendChild(row);
-  });
-}
-
-// 목록에서 곡을 누르면 위쪽 재생 화면에서 바로 재생돼요.
-function playPlaylistItem(p, id, rowEl) {
-  document.querySelectorAll(".playlist-row.playing").forEach(r => r.classList.remove("playing"));
-  if (rowEl) rowEl.classList.add("playing");
-  currentPlayingId = id;
-
-  el("playlistPlayer").classList.remove("hidden");
-  el("playlistPlayerTitle").textContent = p.title || p.url;
-
-  const embedUrl = getEmbedUrl(p.url);
-  const embedEl = el("playlistPlayerEmbed");
-  if (embedUrl) {
-    // 화면은 음악 카드처럼 보여주고, 실제 영상 iframe은 화면 밖에 숨겨서
-    // 소리만 계속 나오게 해요(완전히 지우면 재생도 같이 끊겨요).
-    embedEl.innerHTML = `
-      <div class="audio-player-card">
-        ${p.thumbnailUrl
-          ? `<img class="audio-player-thumb" src="${escapeHtml(p.thumbnailUrl)}" alt="">`
-          : `<div class="audio-player-icon">🎵</div>`}
-        <div class="audio-player-bars"><span></span><span></span><span></span></div>
-      </div>
-      <iframe class="audio-only-frame" src="${embedUrl}" title="player" allow="autoplay; encrypted-media"></iframe>
-    `;
-  } else {
-    embedEl.innerHTML = `<div class="playlist-empty" style="padding-top:0;">이 링크는 바로 재생할 수 없어요.<br><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-teal)">새 탭에서 열기 →</a></div>`;
-  }
-  el("playlistPlayer").scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-// 유튜브(watch/youtu.be/shorts) 또는 SOOP(옛 아프리카TV) VOD 링크를 임베드용 URL로 변환.
-// 둘 다 아니면 null.
-function getEmbedUrl(url) {
-  try {
-    const u = new URL(url);
-
-    // 유튜브
-    let ytId = null;
-    if (u.hostname.includes("youtu.be")) {
-      ytId = u.pathname.slice(1);
-    } else if (u.hostname.includes("youtube.com")) {
-      if (u.pathname === "/watch") ytId = u.searchParams.get("v");
-      else if (u.pathname.startsWith("/shorts/")) ytId = u.pathname.split("/")[2];
-      else if (u.pathname.startsWith("/embed/")) ytId = u.pathname.split("/")[2];
-    }
-    if (ytId) return `https://www.youtube.com/embed/${ytId}?autoplay=1`;
-
-    // SOOP(옛 아프리카TV) VOD - https://vod.sooplive.com/player/{번호} 형태
-    if (u.hostname.includes("sooplive.com") || u.hostname.includes("afreecatv.com")) {
-      const parts = u.pathname.split("/").filter(Boolean); // ["player", "202823293", ...]
-      const playerIdx = parts.indexOf("player");
-      const vodId = playerIdx !== -1 ? parts[playerIdx + 1] : null;
-      if (vodId) {
-        return `https://vod.sooplive.com/player/${vodId}/embed?autoPlay=true&showChat=false&mutePlay=true`;
-      }
-    }
-
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
-// ---------- 플레이리스트 썸네일 업로드 ----------
-el("playlistThumbFile").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const statusEl = el("playlistThumbStatus");
-  statusEl.classList.remove("hidden", "error");
-  statusEl.textContent = "업로드 중...";
-  try {
-    playlistThumbUrl = await uploadToImgBB(file);
-    statusEl.textContent = "업로드 완료 ✓";
-    renderPlaylistThumbPreview();
-  } catch (err) {
-    statusEl.textContent = "업로드 실패: " + err.message;
-    statusEl.classList.add("error");
-  }
-  e.target.value = "";
-});
-
-function renderPlaylistThumbPreview() {
-  const listEl = el("playlistThumbPreview");
-  listEl.innerHTML = "";
-  if (!playlistThumbUrl) return;
-  const item = document.createElement("div");
-  item.className = "image-preview-item";
-  item.innerHTML = `<img src="${playlistThumbUrl}" alt=""><button class="image-preview-remove" type="button" title="삭제">✕</button>`;
-  item.querySelector("button").addEventListener("click", () => {
-    playlistThumbUrl = null;
-    renderPlaylistThumbPreview();
-  });
-  listEl.appendChild(item);
-}
-
-// 목록의 ✎ 버튼을 누르면 등록 폼이 수정 모드로 바뀌어요.
-function startEditPlaylistItem(id, p) {
-  editingPlaylistId = id;
-  el("playlistTitleInput").value = p.title || "";
-  el("playlistUrlInput").value = p.url || "";
-  playlistThumbUrl = p.thumbnailUrl || null;
-  renderPlaylistThumbPreview();
-  el("playlistAddBtn").textContent = "💾 저장";
-  el("playlistAddCancelBtn").classList.remove("hidden");
-  el("playlistAddRow").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  el("playlistTitleInput").focus();
-}
-
-function cancelEditPlaylistItem() {
-  editingPlaylistId = null;
-  el("playlistTitleInput").value = "";
-  el("playlistUrlInput").value = "";
-  playlistThumbUrl = null;
-  renderPlaylistThumbPreview();
-  el("playlistThumbStatus").classList.add("hidden");
-  el("playlistAddBtn").textContent = "➕ 등록";
-  el("playlistAddCancelBtn").classList.add("hidden");
-}
-
-el("playlistAddCancelBtn").addEventListener("click", cancelEditPlaylistItem);
-el("playlistAddBtn").addEventListener("click", savePlaylistItem);
-[el("playlistTitleInput"), el("playlistUrlInput")].forEach(inp => {
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") savePlaylistItem(); });
-});
-
-async function savePlaylistItem() {
-  const title = el("playlistTitleInput").value.trim();
-  let url = el("playlistUrlInput").value.trim();
-  if (!url) { alert("링크를 입력해주세요."); return; }
-  if (!/^https?:\/\//i.test(url)) url = "https://" + url; // 프로토콜 빠뜨려도 알아서 붙여줌
-
-  const btn = el("playlistAddBtn");
-  btn.disabled = true;
-  try {
-    if (editingPlaylistId) {
-      await updateDoc(doc(db, "playlist", editingPlaylistId), {
-        title, url,
-        thumbnailUrl: playlistThumbUrl || null,
-      });
-    } else {
-      await addDoc(collection(db, "playlist"), {
-        title, url,
-        thumbnailUrl: playlistThumbUrl || null,
-        order: Date.now(),
-        addedAt: serverTimestamp(),
-      });
-    }
-    cancelEditPlaylistItem();
-    loadPlaylist();
-  } catch (err) {
-    alert((editingPlaylistId ? "수정 실패: " : "등록 실패: ") + (err.code || err.message) +
-      "\n\nFirestore 보안 규칙에 playlist 컬렉션 쓰기 권한이 없을 가능성이 높아요. Firebase 콘솔 > Firestore Database > 규칙에서 playlist 컬렉션 규칙을 확인해주세요.");
-  } finally {
-    btn.disabled = false;
-  }
-}
 
 // ---------- 유틸 ----------
 function getImages(p) {
