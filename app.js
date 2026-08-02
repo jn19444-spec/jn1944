@@ -136,8 +136,64 @@ el("signupSubmitBtn").addEventListener("click", async () => {
 el("adminMenuBtn").addEventListener("click", () => {
   el("adminMenuModal").classList.remove("hidden");
   loadMemberList();
+  el("migrateStatus").textContent = "";
+  el("migrateLog").innerHTML = "";
 });
 el("adminMenuCloseBtn").addEventListener("click", () => el("adminMenuModal").classList.add("hidden"));
+
+el("migrateImagesBtn").addEventListener("click", migrateAllImages);
+
+async function migrateAllImages() {
+  const statusEl = el("migrateStatus");
+  const logEl = el("migrateLog");
+  const btn = el("migrateImagesBtn");
+  logEl.innerHTML = "";
+  btn.disabled = true;
+  statusEl.textContent = "게시글을 불러오는 중...";
+
+  const snap = await getDocs(collection(db, "posts"));
+  const posts = snap.docs;
+  let postsChanged = 0, imagesMigrated = 0, imagesFailed = 0;
+
+  for (let i = 0; i < posts.length; i++) {
+    const docSnap = posts[i];
+    const p = docSnap.data();
+    const images = getImages(p);
+    if (!images.length) continue;
+    statusEl.textContent = `처리 중... (${i + 1}/${posts.length}) "${p.title || ""}"`;
+
+    const newUrls = [];
+    let changed = false;
+    for (const url of images) {
+      if (url.includes("ibb.co")) { newUrls.push(url); continue; } // 이미 옮겨진 이미지는 건너뜀
+      try {
+        const resp = await fetch(url, { mode: "cors" });
+        if (!resp.ok) throw new Error("이미지를 가져오지 못함");
+        const blob = await resp.blob();
+        const file = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
+        const newUrl = await uploadToImgBB(file);
+        newUrls.push(newUrl);
+        changed = true;
+        imagesMigrated++;
+      } catch (err) {
+        newUrls.push(url); // 실패하면 원래 링크를 그대로 유지
+        imagesFailed++;
+        const row = document.createElement("div");
+        row.className = "manage-row";
+        row.innerHTML = `<span class="manage-row-label" style="color:var(--accent-rose); font-size:12px;">실패: "${escapeHtml(p.title || "")}" → ${escapeHtml(url)}</span>`;
+        logEl.appendChild(row);
+      }
+    }
+    if (changed) {
+      await updateDoc(docSnap.ref, { imageUrls: newUrls });
+      postsChanged++;
+    }
+  }
+
+  btn.disabled = false;
+  statusEl.textContent = `완료! 게시글 ${postsChanged}개 업데이트 · 이미지 ${imagesMigrated}개 성공 · ${imagesFailed}개 실패` +
+    (imagesFailed ? " (실패한 이미지는 아래 목록을 참고해서 직접 다운받아 수정하기 화면에서 다시 올려주세요)" : "");
+}
 
 async function loadMemberList() {
   const listEl = el("memberList");
