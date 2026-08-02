@@ -117,6 +117,7 @@ onAuthStateChanged(auth, async (user) => {
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
   el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
+  el("editHomeBannerBtn").classList.toggle("hidden", !isAdmin);
 
   await loadBoardConfig();
   if (currentBoardId === "__all__") loadAllPosts();
@@ -164,6 +165,13 @@ el("loginSubmitBtn").addEventListener("click", async () => {
 
 el("signupBtn").addEventListener("click", () => el("signupModal").classList.remove("hidden"));
 el("signupCancelBtn").addEventListener("click", () => el("signupModal").classList.add("hidden"));
+
+[el("loginEmail"), el("loginPassword")].forEach(inp => {
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") el("loginSubmitBtn").click(); });
+});
+[el("signupEmail"), el("signupPassword")].forEach(inp => {
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") el("signupSubmitBtn").click(); });
+});
 
 el("signupSubmitBtn").addEventListener("click", async () => {
   const id = el("signupEmail").value.trim();
@@ -500,6 +508,7 @@ function selectBoard(row) {
   el("currentBoardName").textContent = row.name;
   el("writeBtn").classList.toggle("hidden", !isAdmin);
   showListView();
+  hideHomeBanner();
   renderBoardTree();
   loadPosts(row.id);
 }
@@ -510,6 +519,7 @@ function selectAllBoards() {
   el("currentBoardName").textContent = "📋 전체 게시판";
   el("writeBtn").classList.add("hidden"); // 전체 게시판에서는 글쓰기 불가(게시판을 골라야 함)
   showListView();
+  hideHomeBanner();
   renderBoardTree();
   loadAllPosts();
 }
@@ -533,16 +543,112 @@ function showDetailView() {
   el("detailView").classList.remove("hidden");
 }
 
+function showHomeBanner() {
+  el("homeBanner").classList.remove("hidden");
+  el("listContentHeader").classList.add("hidden");
+}
+function hideHomeBanner() {
+  el("homeBanner").classList.add("hidden");
+  el("listContentHeader").classList.remove("hidden");
+}
+
 el("homeBtn").addEventListener("click", () => {
   currentBoardId = null;
   currentBoard = null;
   editingPostId = null;
-  el("currentBoardName").textContent = "게시판을 선택하세요";
   el("writeBtn").classList.add("hidden");
   el("postList").innerHTML = "";
   el("emptyState").classList.add("hidden");
+  el("pagination").classList.add("hidden");
   showListView();
+  showHomeBanner();
   renderBoardTree();
+});
+
+// ---------- 대표화면(홈 배너) ----------
+// config/site 문서에 같이 저장돼요(관리자 판별에 쓰는 문서와 동일). 모두가 읽을 수 있고 관리자만 수정 가능해요.
+let siteConfig = {};
+let homeBannerDraftImageUrl = null;
+
+async function loadHomeBanner() {
+  try {
+    const snap = await getDoc(doc(db, "config", "site"));
+    siteConfig = snap.exists() ? snap.data() : {};
+  } catch (e) {
+    siteConfig = {};
+  }
+  renderHomeBanner();
+}
+
+function renderHomeBanner() {
+  const hasImg = !!siteConfig.homeBannerImageUrl;
+  el("homeBannerImg").src = hasImg ? siteConfig.homeBannerImageUrl : "";
+  el("homeBannerImg").classList.toggle("hidden", !hasImg);
+  el("homeBannerNoImg").classList.toggle("hidden", hasImg);
+  el("homeBannerTitle").textContent = siteConfig.homeBannerTitle || "+구구+ 팬 홈페이지";
+  el("homeBannerDesc").textContent = siteConfig.homeBannerDesc || "왼쪽에서 게시판을 선택해 시작해보세요.";
+  el("editHomeBannerBtn").classList.toggle("hidden", !isAdmin);
+}
+
+el("editHomeBannerBtn").addEventListener("click", () => {
+  homeBannerDraftImageUrl = siteConfig.homeBannerImageUrl || null;
+  el("homeBannerTitleInput").value = siteConfig.homeBannerTitle || "";
+  el("homeBannerDescInput").value = siteConfig.homeBannerDesc || "";
+  el("homeBannerImageStatus").classList.add("hidden");
+  renderHomeBannerImagePreview();
+  el("homeBannerModal").classList.remove("hidden");
+});
+el("homeBannerCancelBtn").addEventListener("click", () => el("homeBannerModal").classList.add("hidden"));
+
+el("homeBannerImageFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = el("homeBannerImageStatus");
+  statusEl.classList.remove("hidden", "error");
+  statusEl.textContent = "업로드 중...";
+  try {
+    homeBannerDraftImageUrl = await uploadToImgBB(file);
+    statusEl.textContent = "업로드 완료 ✓";
+    renderHomeBannerImagePreview();
+  } catch (err) {
+    statusEl.textContent = "업로드 실패: " + err.message;
+    statusEl.classList.add("error");
+  }
+  e.target.value = "";
+});
+
+function renderHomeBannerImagePreview() {
+  const listEl = el("homeBannerImagePreview");
+  listEl.innerHTML = "";
+  if (!homeBannerDraftImageUrl) return;
+  const item = document.createElement("div");
+  item.className = "image-preview-item";
+  item.innerHTML = `<img src="${homeBannerDraftImageUrl}" alt=""><button class="image-preview-remove" type="button" title="삭제">✕</button>`;
+  item.querySelector("button").addEventListener("click", () => {
+    homeBannerDraftImageUrl = null;
+    renderHomeBannerImagePreview();
+  });
+  listEl.appendChild(item);
+}
+
+el("homeBannerSaveBtn").addEventListener("click", async () => {
+  const btn = el("homeBannerSaveBtn");
+  btn.disabled = true;
+  try {
+    const newData = {
+      homeBannerImageUrl: homeBannerDraftImageUrl || null,
+      homeBannerTitle: el("homeBannerTitleInput").value.trim(),
+      homeBannerDesc: el("homeBannerDescInput").value.trim(),
+    };
+    await updateDoc(doc(db, "config", "site"), newData);
+    siteConfig = { ...siteConfig, ...newData };
+    renderHomeBanner();
+    el("homeBannerModal").classList.add("hidden");
+  } catch (err) {
+    alert("저장 실패: " + (err.code || err.message));
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 // ---------- 검색 ----------
@@ -561,10 +667,11 @@ async function performSearch() {
   el("currentBoardName").textContent = `🔍 검색 결과: "${keyword}"`;
   el("writeBtn").classList.add("hidden");
   showListView();
+  hideHomeBanner();
   renderBoardTree();
 
   const listEl = el("postList");
-  listEl.innerHTML = "";
+  listEl.innerHTML = `<p class="empty-state">검색하는 중...</p>`;
   el("pagination").classList.add("hidden");
   el("emptyState").classList.add("hidden");
 
@@ -585,6 +692,7 @@ async function performSearch() {
     }
   }
   if (!entries.length) {
+    listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
     return;
   }
@@ -791,7 +899,8 @@ function renderPagination(totalItems, page) {
 // ---------- 목록 불러오기 (게시판 1개) ----------
 async function loadPosts(boardId) {
   const listEl = el("postList");
-  listEl.innerHTML = "";
+  listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  el("emptyState").classList.add("hidden");
   el("pagination").classList.add("hidden");
   const q = query(collection(db, "posts"), where("boardId", "==", boardId));
   let snap;
@@ -802,6 +911,7 @@ async function loadPosts(boardId) {
     return;
   }
   if (snap.empty) {
+    listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
     return;
   }
@@ -813,7 +923,8 @@ async function loadPosts(boardId) {
 // ---------- 목록 불러오기 (전체 게시판) ----------
 async function loadAllPosts() {
   const listEl = el("postList");
-  listEl.innerHTML = "";
+  listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  el("emptyState").classList.add("hidden");
   el("pagination").classList.add("hidden");
   const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
   let entries = [];
@@ -827,6 +938,7 @@ async function loadAllPosts() {
     }
   }
   if (!entries.length) {
+    listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
     return;
   }
@@ -1013,9 +1125,9 @@ async function deleteRow(row) {
     if (currentBoardId === row.id) {
       currentBoardId = null;
       currentBoard = null;
-      el("currentBoardName").textContent = "게시판을 선택하세요";
       el("writeBtn").classList.add("hidden");
       el("postList").innerHTML = "";
+      showHomeBanner();
     }
   }
   await deleteDoc(doc(db, "boards", row.id));
@@ -1125,3 +1237,5 @@ function escapeHtml(str) {
 }
 
 renderBoardTree();
+showHomeBanner();
+loadHomeBanner();

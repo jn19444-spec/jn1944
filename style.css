@@ -157,6 +157,36 @@ body{
   padding:3px 10px; margin-left:8px; vertical-align:middle;
 }
 
+/* ---------- 대표화면(홈 배너) ---------- */
+.home-banner{
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  gap:14px;
+  padding:48px 24px;
+  margin-bottom:20px;
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.home-banner-media{
+  width:104px; height:104px; border-radius:50%;
+  overflow:hidden; flex-shrink:0;
+  background:var(--bg-panel-2);
+  display:flex; align-items:center; justify-content:center;
+}
+.home-banner-media img{ width:100%; height:100%; object-fit:cover; }
+.home-banner-noimg{ font-size:44px; }
+.home-banner-text h2{
+  font-family:var(--font-display); font-weight:400; font-size:24px; margin:0 0 6px;
+}
+.home-banner-text p{
+  font-size:14px; color:var(--text-dim); margin:0; max-width:440px;
+  white-space:pre-line; line-height:1.5;
+}
+.home-banner-edit-btn{
+  position:absolute; top:14px; right:14px;
+}
+
 .post-list{display:flex; flex-direction:column; gap:14px;}
 .post-card{
   display:flex; gap:16px; align-items:stretch;
@@ -305,6 +335,12 @@ body{
   background:var(--bg-panel-2); border:1px solid var(--line);
   color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:14px;
 }
+.modal-box textarea{
+  background:var(--bg-panel-2); border:1px solid var(--line);
+  color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:14px;
+  font-family:var(--font-body); resize:vertical;
+}
+.modal-box textarea:focus{ outline:2px solid var(--accent-teal); outline-offset:1px; }
 .modal-box select{
   background:var(--bg-panel-2); border:1px solid var(--line);
   color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:14px;
