@@ -71,15 +71,26 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     if (!isAdmin) {
-      // 회원 문서 확인 (없으면 생성)
+      // 회원 문서 확인: 문서가 없거나 승인 대기/차단 상태면 접근을 막아요.
+      // (회원 문서는 회원가입 시에만 만들어져요 - approved 필드는 기본 true로 취급해 기존 회원은 그대로 이용 가능)
       const memberRef = doc(db, "members", user.uid);
       const memberSnap = await getDoc(memberRef).catch(() => null);
       if (memberSnap && memberSnap.exists()) {
-        canViewPrivate = !!memberSnap.data().canViewPrivate;
+        const data = memberSnap.data();
+        if (data.approved === false) {
+          await signOut(auth); // onAuthStateChanged가 user=null로 다시 호출되며 화면이 정리됨
+          return;
+        }
+        canViewPrivate = !!data.canViewPrivate;
       } else {
-        await setDoc(memberRef, { email: user.email, joinedAt: serverTimestamp(), canViewPrivate: false }).catch(() => {});
+        await signOut(auth);
+        return;
       }
+    } else {
+      refreshPendingBadge();
     }
+  } else {
+    updatePendingBadge(0);
   }
 
   el("loginBtn").classList.toggle("hidden", !!user);
@@ -104,7 +115,22 @@ el("loginSubmitBtn").addEventListener("click", async () => {
   const pw = el("loginPassword").value;
   el("loginError").classList.add("hidden");
   try {
-    await signInWithEmailAndPassword(auth, email, pw);
+    const cred = await signInWithEmailAndPassword(auth, email, pw);
+
+    // 관리자는 승인 체크 없이 통과, 회원은 승인된 계정인지 확인
+    const configSnap = await getDoc(doc(db, "config", "site")).catch(() => null);
+    const loggedInIsAdmin = !!(configSnap && configSnap.exists() && configSnap.data().adminUid === cred.user.uid);
+    if (!loggedInIsAdmin) {
+      const memberSnap = await getDoc(doc(db, "members", cred.user.uid)).catch(() => null);
+      const approved = !!(memberSnap && memberSnap.exists() && memberSnap.data().approved !== false);
+      if (!approved) {
+        await signOut(auth);
+        el("loginError").textContent = "가입 승인 대기 중이거나 접근이 제한된 계정이에요. 관리자에게 문의해주세요.";
+        el("loginError").classList.remove("hidden");
+        return;
+      }
+    }
+
     el("loginModal").classList.add("hidden");
     el("loginEmail").value = "";
     el("loginPassword").value = "";
@@ -122,24 +148,42 @@ el("signupSubmitBtn").addEventListener("click", async () => {
   const pw = el("signupPassword").value;
   el("signupError").classList.add("hidden");
   try {
-    await createUserWithEmailAndPassword(auth, email, pw);
+    const cred = await createUserWithEmailAndPassword(auth, email, pw);
+    // 회원 문서를 승인 대기 상태로 생성하고, 바로 로그아웃시켜서
+    // 관리자가 승인하기 전까지는 로그인해도 다시 튕겨나가게 해요.
+    await setDoc(doc(db, "members", cred.user.uid), {
+      email: cred.user.email,
+      joinedAt: serverTimestamp(),
+      canViewPrivate: false,
+      approved: false,
+    });
+    await signOut(auth);
     el("signupModal").classList.add("hidden");
     el("signupEmail").value = "";
     el("signupPassword").value = "";
+    alert("가입 신청이 완료됐어요!\n관리자가 승인하면 로그인할 수 있어요.");
   } catch (e) {
     el("signupError").textContent = "가입 실패: " + (e.code === "auth/email-already-in-use" ? "이미 가입된 이메일이에요." : e.code === "auth/weak-password" ? "비밀번호는 6자 이상이어야 해요." : "입력값을 확인해주세요.");
     el("signupError").classList.remove("hidden");
   }
 });
 
-// ---------- 관리자 메뉴 (회원 권한 관리) ----------
+// ---------- 관리자 메뉴 ----------
 el("adminMenuBtn").addEventListener("click", () => {
   el("adminMenuModal").classList.remove("hidden");
-  loadMemberList();
+  refreshPendingBadge();
   el("migrateStatus").textContent = "";
   el("migrateLog").innerHTML = "";
 });
 el("adminMenuCloseBtn").addEventListener("click", () => el("adminMenuModal").classList.add("hidden"));
+
+// ---------- 회원 관리 (승인/차단/삭제) ----------
+el("openMemberManageBtn").addEventListener("click", () => {
+  el("adminMenuModal").classList.add("hidden");
+  el("memberManageModal").classList.remove("hidden");
+  loadMemberList();
+});
+el("memberManageCloseBtn").addEventListener("click", () => el("memberManageModal").classList.add("hidden"));
 
 el("migrateImagesBtn").addEventListener("click", migrateAllImages);
 
@@ -201,23 +245,94 @@ async function loadMemberList() {
   const snap = await getDocs(collection(db, "members"));
   if (snap.empty) {
     listEl.innerHTML = `<p class="empty-state">아직 가입한 회원이 없어요.</p>`;
+    updatePendingBadge(0);
     return;
   }
+
+  let members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // 승인 대기 회원을 위로, 그다음 최근 가입순
+  members.sort((a, b) => {
+    const aPending = a.approved === false ? 0 : 1;
+    const bPending = b.approved === false ? 0 : 1;
+    if (aPending !== bPending) return aPending - bPending;
+    const at = a.joinedAt && a.joinedAt.toDate ? a.joinedAt.toDate().getTime() : 0;
+    const bt = b.joinedAt && b.joinedAt.toDate ? b.joinedAt.toDate().getTime() : 0;
+    return bt - at;
+  });
+  updatePendingBadge(members.filter(m => m.approved === false).length);
+
   listEl.innerHTML = "";
-  snap.forEach(docSnap => {
-    const m = docSnap.data();
+  members.forEach(m => {
+    const approved = m.approved !== false;
     const row = document.createElement("div");
     row.className = "manage-row";
     row.innerHTML = `
-      <span class="manage-row-label">${escapeHtml(m.email || docSnap.id)}</span>
-      <label class="checkbox-label">
-        <input type="checkbox" ${m.canViewPrivate ? "checked" : ""}> 비공개 게시판 열람 허용
-      </label>
+      <div class="member-row-info">
+        <span class="member-row-email">${escapeHtml(m.email || m.id)}</span>
+        <span class="member-row-meta">
+          <span class="status-pill ${approved ? "approved" : "pending"}">${approved ? "승인됨" : "승인대기"}</span>
+          <span>가입일 ${formatDate(m.joinedAt) || "-"}</span>
+        </span>
+      </div>
+      <span class="manage-row-actions member-row-actions">
+        <label class="checkbox-label">
+          <input type="checkbox" data-role="private" ${m.canViewPrivate ? "checked" : ""}> 비공개 열람
+        </label>
+        ${approved ? `<button data-act="block">차단</button>` : `<button data-act="approve">승인</button>`}
+        <button data-act="delete" class="danger">삭제</button>
+      </span>
     `;
-    row.querySelector('input[type="checkbox"]').addEventListener("change", async (e) => {
-      await updateDoc(doc(db, "members", docSnap.id), { canViewPrivate: e.target.checked });
+
+    row.querySelector('[data-role="private"]').addEventListener("change", async (e) => {
+      await updateDoc(doc(db, "members", m.id), { canViewPrivate: e.target.checked });
     });
+
+    const approveBtn = row.querySelector('[data-act="approve"]');
+    if (approveBtn) {
+      approveBtn.addEventListener("click", async () => {
+        await updateDoc(doc(db, "members", m.id), { approved: true });
+        loadMemberList();
+      });
+    }
+
+    const blockBtn = row.querySelector('[data-act="block"]');
+    if (blockBtn) {
+      blockBtn.addEventListener("click", async () => {
+        if (!confirm(`"${m.email || m.id}" 회원의 접근을 차단할까요?\n다시 승인하기 전까지 로그인할 수 없어요.`)) return;
+        await updateDoc(doc(db, "members", m.id), { approved: false });
+        loadMemberList();
+      });
+    }
+
+    row.querySelector('[data-act="delete"]').addEventListener("click", async () => {
+      if (!confirm(`"${m.email || m.id}" 회원을 삭제할까요?\n삭제하면 이 계정으로 다시 로그인할 수 없어요.\n(같은 이메일로 재가입도 안 돼요 - 완전히 계정을 없애려면 Firebase 콘솔에서 지워야 해요.)`)) return;
+      await deleteDoc(doc(db, "members", m.id));
+      loadMemberList();
+    });
+
     listEl.appendChild(row);
+  });
+}
+
+// 관리자 메뉴 버튼 / 회원 관리 버튼에 승인 대기 인원 수 뱃지를 표시
+async function refreshPendingBadge() {
+  if (!isAdmin) { updatePendingBadge(0); return; }
+  try {
+    const snap = await getDocs(query(collection(db, "members"), where("approved", "==", false)));
+    updatePendingBadge(snap.size);
+  } catch (e) {
+    // 무시 (뱃지는 편의 기능이라 실패해도 치명적이지 않음)
+  }
+}
+function updatePendingBadge(count) {
+  [el("adminMenuPendingBadge"), el("pendingBadge")].forEach(b => {
+    if (!b) return;
+    if (count > 0) {
+      b.textContent = count;
+      b.classList.remove("hidden");
+    } else {
+      b.classList.add("hidden");
+    }
   });
 }
 
