@@ -117,6 +117,7 @@ onAuthStateChanged(auth, async (user) => {
   await loadBoardConfig();
   if (currentBoardId === "__all__") loadAllPosts();
   else if (currentBoardId) loadPosts(currentBoardId);
+  loadPlaylist();
 });
 
 el("loginBtn").addEventListener("click", () => el("loginModal").classList.remove("hidden"));
@@ -983,66 +984,82 @@ el("backupBtn").addEventListener("click", async () => {
   }
 });
 
-// ---------- 플레이리스트 ----------
-let playlistThumbUrl = null; // 등록 폼에서 업로드된 썸네일 URL
+// ---------- 플레이리스트 (우측에 항상 떠있는 패널) ----------
+let playlistThumbUrl = null; // 등록/수정 폼에서 업로드된 썸네일 URL
+let editingPlaylistId = null; // null이면 새 곡 등록, 값이 있으면 그 곡을 수정하는 중
+let currentPlayingId = null;
 
+// 상단 버튼은 모달을 여는 대신 우측 패널로 스크롤만 시켜줘요 (패널은 항상 떠있음).
 el("playlistBtn").addEventListener("click", () => {
-  el("playlistModal").classList.remove("hidden");
-  showPlaylistGrid();
-  loadPlaylist();
+  el("playerRail").scrollIntoView({ behavior: "smooth", block: "start" });
 });
-el("playlistCloseBtn").addEventListener("click", () => el("playlistModal").classList.add("hidden"));
-el("playlistBackBtn").addEventListener("click", showPlaylistGrid);
 
-function showPlaylistGrid() {
+el("playlistStopBtn").addEventListener("click", stopPlaylistPlayer);
+
+function stopPlaylistPlayer() {
   el("playlistPlayer").classList.add("hidden");
   el("playlistPlayerEmbed").innerHTML = "";
-  el("playlistGrid").classList.remove("hidden");
-  el("playlistAddRow").classList.toggle("hidden", !isAdmin);
+  currentPlayingId = null;
+  document.querySelectorAll(".playlist-row.playing").forEach(r => r.classList.remove("playing"));
 }
 
 async function loadPlaylist() {
   el("playlistAddRow").classList.toggle("hidden", !isAdmin);
-  const gridEl = el("playlistGrid");
-  gridEl.innerHTML = "불러오는 중...";
+  const listEl = el("playlistList");
+  listEl.innerHTML = "불러오는 중...";
   let snap;
   try {
     snap = await getDocs(query(collection(db, "playlist"), orderBy("order", "asc")));
   } catch (err) {
-    gridEl.innerHTML = `<p class="playlist-empty">목록을 불러오지 못했어요.<br>(${escapeHtml(err.code || err.message)})</p>`;
+    listEl.innerHTML = `<p class="playlist-empty">목록을 불러오지 못했어요.<br>(${escapeHtml(err.code || err.message)})</p>`;
     return;
   }
   if (snap.empty) {
-    gridEl.innerHTML = `<p class="playlist-empty">아직 등록된 노래가 없어요.</p>`;
+    listEl.innerHTML = `<p class="playlist-empty">아직 등록된 노래가 없어요.</p>`;
     return;
   }
-  gridEl.innerHTML = "";
+  listEl.innerHTML = "";
   snap.forEach(docSnap => {
     const p = docSnap.data();
-    const card = document.createElement("div");
-    card.className = "playlist-card";
-    card.innerHTML = `
-      ${p.thumbnailUrl ? `<img src="${escapeHtml(p.thumbnailUrl)}" alt="">` : `<div class="playlist-card-noimg">🎵</div>`}
-      <div class="playlist-card-title">${escapeHtml(p.title || p.url)}</div>
-      ${isAdmin ? `<button class="playlist-card-del" title="삭제">✕</button>` : ""}
+    const id = docSnap.id;
+    const row = document.createElement("div");
+    row.className = "playlist-row" + (id === currentPlayingId ? " playing" : "");
+    row.innerHTML = `
+      ${p.thumbnailUrl ? `<img class="playlist-row-thumb" src="${escapeHtml(p.thumbnailUrl)}" alt="">` : `<div class="playlist-row-noimg">🎵</div>`}
+      <div class="playlist-row-title">${escapeHtml(p.title || p.url)}</div>
+      ${isAdmin ? `<span class="playlist-row-actions">
+        <button data-act="edit" title="수정">✎</button>
+        <button data-act="delete" class="danger" title="삭제">✕</button>
+      </span>` : ""}
     `;
-    card.addEventListener("click", () => playPlaylistItem(p));
+    row.addEventListener("click", (e) => {
+      if (e.target.closest("[data-act]")) return;
+      playPlaylistItem(p, id, row);
+    });
     if (isAdmin) {
-      card.querySelector(".playlist-card-del").addEventListener("click", async (e) => {
+      row.querySelector('[data-act="edit"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        startEditPlaylistItem(id, p);
+      });
+      row.querySelector('[data-act="delete"]').addEventListener("click", async (e) => {
         e.stopPropagation();
         if (!confirm(`"${p.title || p.url}"을(를) 목록에서 지울까요?`)) return;
         await deleteDoc(docSnap.ref);
+        if (id === currentPlayingId) stopPlaylistPlayer();
+        if (id === editingPlaylistId) cancelEditPlaylistItem();
         loadPlaylist();
       });
     }
-    gridEl.appendChild(card);
+    listEl.appendChild(row);
   });
 }
 
-// 카드를 누르면 목록 화면 대신 재생 화면으로 옮겨가서 바로 들을 수 있어요.
-function playPlaylistItem(p) {
-  el("playlistGrid").classList.add("hidden");
-  el("playlistAddRow").classList.add("hidden");
+// 목록에서 곡을 누르면 위쪽 재생 화면에서 바로 재생돼요.
+function playPlaylistItem(p, id, rowEl) {
+  document.querySelectorAll(".playlist-row.playing").forEach(r => r.classList.remove("playing"));
+  if (rowEl) rowEl.classList.add("playing");
+  currentPlayingId = id;
+
   el("playlistPlayer").classList.remove("hidden");
   el("playlistPlayerTitle").textContent = p.title || p.url;
 
@@ -1053,6 +1070,7 @@ function playPlaylistItem(p) {
   } else {
     embedEl.innerHTML = `<div class="playlist-empty" style="padding-top:0;">이 링크는 바로 재생할 수 없어요.<br><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-teal)">새 탭에서 열기 →</a></div>`;
   }
+  el("playlistPlayer").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // 유튜브 링크(watch/youtu.be/shorts)를 임베드용 URL로 변환. 유튜브가 아니면 null.
@@ -1105,12 +1123,37 @@ function renderPlaylistThumbPreview() {
   listEl.appendChild(item);
 }
 
-el("playlistAddBtn").addEventListener("click", addPlaylistItem);
+// 목록의 ✎ 버튼을 누르면 등록 폼이 수정 모드로 바뀌어요.
+function startEditPlaylistItem(id, p) {
+  editingPlaylistId = id;
+  el("playlistTitleInput").value = p.title || "";
+  el("playlistUrlInput").value = p.url || "";
+  playlistThumbUrl = p.thumbnailUrl || null;
+  renderPlaylistThumbPreview();
+  el("playlistAddBtn").textContent = "💾 저장";
+  el("playlistAddCancelBtn").classList.remove("hidden");
+  el("playlistAddRow").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  el("playlistTitleInput").focus();
+}
+
+function cancelEditPlaylistItem() {
+  editingPlaylistId = null;
+  el("playlistTitleInput").value = "";
+  el("playlistUrlInput").value = "";
+  playlistThumbUrl = null;
+  renderPlaylistThumbPreview();
+  el("playlistThumbStatus").classList.add("hidden");
+  el("playlistAddBtn").textContent = "➕ 등록";
+  el("playlistAddCancelBtn").classList.add("hidden");
+}
+
+el("playlistAddCancelBtn").addEventListener("click", cancelEditPlaylistItem);
+el("playlistAddBtn").addEventListener("click", savePlaylistItem);
 [el("playlistTitleInput"), el("playlistUrlInput")].forEach(inp => {
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") addPlaylistItem(); });
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") savePlaylistItem(); });
 });
 
-async function addPlaylistItem() {
+async function savePlaylistItem() {
   const title = el("playlistTitleInput").value.trim();
   let url = el("playlistUrlInput").value.trim();
   if (!url) { alert("링크를 입력해주세요."); return; }
@@ -1119,20 +1162,23 @@ async function addPlaylistItem() {
   const btn = el("playlistAddBtn");
   btn.disabled = true;
   try {
-    await addDoc(collection(db, "playlist"), {
-      title, url,
-      thumbnailUrl: playlistThumbUrl || null,
-      order: Date.now(),
-      addedAt: serverTimestamp(),
-    });
-    el("playlistTitleInput").value = "";
-    el("playlistUrlInput").value = "";
-    playlistThumbUrl = null;
-    renderPlaylistThumbPreview();
-    el("playlistThumbStatus").classList.add("hidden");
+    if (editingPlaylistId) {
+      await updateDoc(doc(db, "playlist", editingPlaylistId), {
+        title, url,
+        thumbnailUrl: playlistThumbUrl || null,
+      });
+    } else {
+      await addDoc(collection(db, "playlist"), {
+        title, url,
+        thumbnailUrl: playlistThumbUrl || null,
+        order: Date.now(),
+        addedAt: serverTimestamp(),
+      });
+    }
+    cancelEditPlaylistItem();
     loadPlaylist();
   } catch (err) {
-    alert("등록 실패: " + (err.code || err.message) +
+    alert((editingPlaylistId ? "수정 실패: " : "등록 실패: ") + (err.code || err.message) +
       "\n\nFirestore 보안 규칙에 playlist 컬렉션 쓰기 권한이 없을 가능성이 높아요. Firebase 콘솔 > Firestore Database > 규칙에서 playlist 컬렉션 규칙을 확인해주세요.");
   } finally {
     btn.disabled = false;
