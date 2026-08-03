@@ -138,7 +138,7 @@ async function routeFromLocation() {
     if (isAdmin) {
       showAdminView();
       refreshPendingBadge();
-      loadMemberList();
+      activateAdminTab("members");
     } else {
       replaceUrl("/");
     }
@@ -232,7 +232,6 @@ onAuthStateChanged(auth, async (user) => {
   el("adminMenuBtn").classList.toggle("hidden", !isAdmin);
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
-  el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
 
   await loadBoardConfig();
   if (!didInitialRoute) {
@@ -332,7 +331,7 @@ el("adminMenuBtn").addEventListener("click", () => {
   refreshPendingBadge();
   el("migrateStatus").textContent = "";
   el("migrateLog").innerHTML = "";
-  loadMemberList();
+  activateAdminTab("members");
   pushUrl("/admin");
 });
 el("adminBackBtn").addEventListener("click", () => {
@@ -343,14 +342,26 @@ el("adminBackBtn").addEventListener("click", () => {
   else { showHomeDashboard(); pushUrl("/"); }
 });
 
+// 탭 이름 → 그 탭이 열릴 때 새로 불러와야 할 데이터
+const ADMIN_TAB_LOADERS = {
+  members: loadMemberList,
+  posts: loadPostAdminList,
+  boards: renderManageList,
+  stats: loadStats,
+  site: fillSiteSettingsForm,
+};
+
+function activateAdminTab(tabName) {
+  document.querySelectorAll(".admin-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tabName));
+  document.querySelectorAll(".admin-panel").forEach(p => p.classList.add("hidden"));
+  const panel = el("adminTab" + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+  if (panel) panel.classList.remove("hidden");
+  const loader = ADMIN_TAB_LOADERS[tabName];
+  if (loader) loader();
+}
+
 document.querySelectorAll(".admin-tab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
-    tab.classList.add("active");
-    document.querySelectorAll(".admin-panel").forEach(p => p.classList.add("hidden"));
-    const panel = el("adminTab" + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1));
-    if (panel) panel.classList.remove("hidden");
-  });
+  tab.addEventListener("click", () => activateAdminTab(tab.dataset.tab));
 });
 
 // ---------- 회원 관리 (승인/차단/삭제) ----------
@@ -621,6 +632,61 @@ function nextOrder() {
   if (boardRows.length === 0) return Date.now();
   return Math.max(...boardRows.map(r => r.order || 0)) + 10;
 }
+
+// ---------- 사이트 설정 (프로필 카드 문구) ----------
+// config/site 문서는 관리자 확인용 adminUid도 같이 들어있는 문서라, merge:true로 필드만 덧붙여요.
+let siteConfig = { siteAvatar: "🐦", siteName: "+구구+", siteTagline: "개인 팬 아카이브 홈페이지" };
+
+async function loadSiteConfig() {
+  try {
+    const snap = await getDoc(doc(db, "config", "site"));
+    if (snap.exists()) {
+      const d = snap.data();
+      siteConfig = {
+        siteAvatar: d.siteAvatar || siteConfig.siteAvatar,
+        siteName: d.siteName || siteConfig.siteName,
+        siteTagline: d.siteTagline || siteConfig.siteTagline,
+      };
+    }
+  } catch (e) {
+    // 무시 - 기본 문구로 표시
+  }
+  applySiteConfig();
+}
+
+function applySiteConfig() {
+  el("profileAvatar").textContent = siteConfig.siteAvatar;
+  el("profileTitle").textContent = siteConfig.siteName;
+  el("profileSub").textContent = siteConfig.siteTagline;
+  el("homeBtn").textContent = siteConfig.siteName;
+}
+
+function fillSiteSettingsForm() {
+  el("siteAvatarInput").value = siteConfig.siteAvatar;
+  el("siteNameInput").value = siteConfig.siteName;
+  el("siteTaglineInput").value = siteConfig.siteTagline;
+  el("siteSettingsStatus").textContent = "";
+}
+
+el("siteSettingsSaveBtn").addEventListener("click", async () => {
+  const avatar = el("siteAvatarInput").value.trim() || "🐦";
+  const name = el("siteNameInput").value.trim() || "+구구+";
+  const tagline = el("siteTaglineInput").value.trim();
+  const btn = el("siteSettingsSaveBtn");
+  const statusEl = el("siteSettingsStatus");
+  btn.disabled = true;
+  try {
+    await setDoc(doc(db, "config", "site"), { siteAvatar: avatar, siteName: name, siteTagline: tagline }, { merge: true });
+    siteConfig = { siteAvatar: avatar, siteName: name, siteTagline: tagline };
+    applySiteConfig();
+    statusEl.textContent = "저장했어요 ✓";
+    setTimeout(() => { statusEl.textContent = ""; }, 2500);
+  } catch (err) {
+    statusEl.textContent = "저장 실패: " + (err.code || err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ---------- 게시판 트리 렌더 ----------
 function renderBoardTree() {
@@ -1016,10 +1082,11 @@ function renderPostCard(docSnap, opts) {
   const images = getImages(p);
   const thumbs = getThumbs(p);
   const card = document.createElement("div");
-  card.className = "post-card";
+  card.className = "post-card" + (p.isPinned ? " pinned" : "");
   card.innerHTML = `
     <div class="post-card-body">
       <div class="post-card-meta">
+        ${p.isPinned ? `<span class="pin-badge">📌 고정</span>` : ""}
         ${opts && opts.boardName ? `<span class="board-tag">${escapeHtml(opts.boardName)}</span>` : ""}
         <span>${escapeHtml(p.author || "익명")}</span>
         <span>·</span>
@@ -1042,6 +1109,18 @@ function sortByDateDesc(docs, getData) {
   return docs.slice().sort((a, b) => {
     // 방금 작성돼서 서버 타임스탬프가 아직 확정 안 된 글(null)은 최신 글로 간주해요.
     // (그렇지 않으면 새 글이 정렬 맨 뒤로 밀려서 페이지 끝에 숨어버려요)
+    const ta = getData(a).createdAt ? getData(a).createdAt.toMillis() : Date.now();
+    const tb = getData(b).createdAt ? getData(b).createdAt.toMillis() : Date.now();
+    return tb - ta;
+  });
+}
+
+// 게시판/전체 목록에서 쓰는 정렬: 고정글을 맨 위로 올리고, 그 안에서는 최신순.
+function sortForBoardList(docs, getData) {
+  return docs.slice().sort((a, b) => {
+    const pa = getData(a).isPinned ? 1 : 0;
+    const pb = getData(b).isPinned ? 1 : 0;
+    if (pa !== pb) return pb - pa;
     const ta = getData(a).createdAt ? getData(a).createdAt.toMillis() : Date.now();
     const tb = getData(b).createdAt ? getData(b).createdAt.toMillis() : Date.now();
     return tb - ta;
@@ -1118,7 +1197,7 @@ async function loadPosts(boardId) {
     return;
   }
   el("emptyState").classList.add("hidden");
-  const sortedDocs = sortByDateDesc(docs, d => d.data());
+  const sortedDocs = sortForBoardList(docs, d => d.data());
   showPostListPage(sortedDocs.map(docSnap => ({ docSnap })));
 }
 
@@ -1146,7 +1225,7 @@ async function loadAllPosts() {
     return;
   }
   el("emptyState").classList.add("hidden");
-  entries = sortByDateDesc(entries, e => e.docSnap.data());
+  entries = sortForBoardList(entries, e => e.docSnap.data());
   showPostListPage(entries);
 }
 
@@ -1171,6 +1250,7 @@ async function openPost(postId, opts = {}) {
     ${images.map((u, i) => imgWrap(u, { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async"` })).join("")}
     <div class="content-text">${escapeHtml(p.content)}</div>
     ${isAdmin ? `<div class="admin-actions">
+      <button id="pinPostBtn" class="btn btn-ghost">${p.isPinned ? "📌 고정 해제" : "📌 고정하기"}</button>
       <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
       <button id="movePostBtn" class="btn btn-ghost">게시판 이동</button>
       <button id="deletePostBtn" class="btn btn-ghost">삭제하기</button>
@@ -1197,6 +1277,12 @@ async function openPost(postId, opts = {}) {
   if (nextBtn) nextBtn.addEventListener("click", () => openPost(nextBtn.dataset.id));
 
   if (isAdmin) {
+    el("pinPostBtn").addEventListener("click", async () => {
+      await updateDoc(ref, { isPinned: !p.isPinned });
+      invalidateBoardCache(p.boardId);
+      openPost(postId, { skipUrl: true });
+    });
+
     el("deletePostBtn").addEventListener("click", async () => {
       if (!confirm("이 게시글을 삭제할까요?")) return;
       await deleteDoc(ref);
@@ -1252,11 +1338,7 @@ function openMoveModal(postId, currentPostBoardId) {
 el("moveCancelBtn").addEventListener("click", () => el("moveModal").classList.add("hidden"));
 
 // ---------- 게시판 관리 패널 ----------
-el("manageBoardsBtn").addEventListener("click", () => {
-  el("manageModal").classList.remove("hidden");
-  renderManageList();
-});
-el("manageCloseBtn").addEventListener("click", () => el("manageModal").classList.add("hidden"));
+// (이제 관리자 메뉴의 "📄 게시판 관리" 탭 안에서 관리해요. 탭 클릭 시 renderManageList()가 호출됩니다.)
 
 el("manageAddBoardBtn").addEventListener("click", async () => {
   const name = el("manageNameInput").value.trim();
@@ -1363,6 +1445,197 @@ async function deleteRow(row) {
   await deleteDoc(doc(db, "boards", row.id));
   await loadBoardConfig();
   renderManageList();
+}
+
+// ---------- 게시글 일괄 관리 ----------
+let adminAllPostEntries = []; // [{docSnap, boardName}, ...] - 전체 게시글 (게시판 필터/검색은 이 배열에서 클라이언트가 처리)
+let adminSelectedPostIds = new Set();
+
+async function loadPostAdminList() {
+  const listEl = el("postAdminList");
+  listEl.innerHTML = "불러오는 중...";
+  adminSelectedPostIds.clear();
+  updatePostAdminSelectedCount();
+
+  const boards = boardRows.filter(r => r.type === "board");
+  const boardFilterSel = el("postAdminBoardFilter");
+  const moveSel = el("postAdminMoveSelect");
+  const prevFilter = boardFilterSel.value;
+  boardFilterSel.innerHTML = `<option value="">전체 게시판</option>` +
+    boards.map(b => `<option value="${b.id}">${b.isPrivate ? "🔒 " : ""}${escapeHtml(b.name)}</option>`).join("");
+  boardFilterSel.value = prevFilter && boards.some(b => b.id === prevFilter) ? prevFilter : "";
+  moveSel.innerHTML = boards.map(b => `<option value="${b.id}">${b.isPrivate ? "🔒 " : ""}${escapeHtml(b.name)}</option>`).join("");
+
+  const boardNameById = new Map(boards.map(b => [b.id, b.name]));
+  try {
+    const snap = await getDocs(collection(db, "posts"));
+    adminAllPostEntries = snap.docs.map(docSnap => ({
+      docSnap,
+      boardName: boardNameById.get(docSnap.data().boardId) || "(삭제된 게시판)",
+    }));
+  } catch (err) {
+    listEl.innerHTML = `<p class="empty-state">불러오지 못했어요. (${err.code || err.message})</p>`;
+    return;
+  }
+  renderPostAdminList();
+}
+
+function renderPostAdminList() {
+  const listEl = el("postAdminList");
+  const keyword = el("postAdminSearchInput").value.trim().toLowerCase();
+  const boardFilter = el("postAdminBoardFilter").value;
+
+  let entries = adminAllPostEntries.filter(({ docSnap }) => {
+    const d = docSnap.data();
+    if (boardFilter && d.boardId !== boardFilter) return false;
+    if (keyword && !(d.title || "").toLowerCase().includes(keyword)) return false;
+    return true;
+  });
+  entries = sortForBoardList(entries, e => e.docSnap.data());
+
+  el("postAdminSelectAll").checked = entries.length > 0 && entries.every(({ docSnap }) => adminSelectedPostIds.has(docSnap.id));
+
+  if (!entries.length) {
+    listEl.innerHTML = `<p class="empty-state">조건에 맞는 게시글이 없어요.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = "";
+  entries.forEach(({ docSnap, boardName }) => {
+    const p = docSnap.data();
+    const id = docSnap.id;
+    const row = document.createElement("div");
+    row.className = "manage-row post-admin-row";
+    row.innerHTML = `
+      <label class="checkbox-label post-admin-checkbox">
+        <input type="checkbox" data-id="${id}" ${adminSelectedPostIds.has(id) ? "checked" : ""}>
+      </label>
+      <div class="member-row-info" style="flex:1; min-width:0;">
+        <span class="member-row-email">${p.isPinned ? "📌 " : ""}${escapeHtml(p.title)}</span>
+        <span class="member-row-meta">
+          <span class="board-tag">${escapeHtml(boardName)}</span>
+          <span>${formatDate(p.createdAt)}</span>
+          <span>👁 ${p.views || 0}</span>
+        </span>
+      </div>
+      <span class="manage-row-actions">
+        <button data-act="pin">${p.isPinned ? "고정 해제" : "📌 고정"}</button>
+        <button data-act="open">보기</button>
+      </span>
+    `;
+    row.querySelector("input[data-id]").addEventListener("change", (e) => {
+      if (e.target.checked) adminSelectedPostIds.add(id); else adminSelectedPostIds.delete(id);
+      updatePostAdminSelectedCount();
+      el("postAdminSelectAll").checked = entries.every(en => adminSelectedPostIds.has(en.docSnap.id));
+    });
+    row.querySelector('[data-act="pin"]').addEventListener("click", async () => {
+      await updateDoc(docSnap.ref, { isPinned: !p.isPinned });
+      invalidateBoardCache(p.boardId);
+      loadPostAdminList();
+    });
+    row.querySelector('[data-act="open"]').addEventListener("click", () => openPost(id));
+    listEl.appendChild(row);
+  });
+}
+
+function updatePostAdminSelectedCount() {
+  el("postAdminSelectedCount").textContent = adminSelectedPostIds.size ? `${adminSelectedPostIds.size}개 선택됨` : "";
+}
+
+el("postAdminSearchInput").addEventListener("input", renderPostAdminList);
+el("postAdminBoardFilter").addEventListener("change", renderPostAdminList);
+
+el("postAdminSelectAll").addEventListener("change", (e) => {
+  const checked = e.target.checked;
+  document.querySelectorAll('#postAdminList input[type="checkbox"][data-id]').forEach(cb => {
+    cb.checked = checked;
+    if (checked) adminSelectedPostIds.add(cb.dataset.id); else adminSelectedPostIds.delete(cb.dataset.id);
+  });
+  updatePostAdminSelectedCount();
+});
+
+async function bulkSetPinned(val) {
+  if (!adminSelectedPostIds.size) return;
+  await Promise.all([...adminSelectedPostIds].map(id => updateDoc(doc(db, "posts", id), { isPinned: val })));
+  invalidateBoardCache();
+  loadPostAdminList();
+}
+el("postAdminPinBtn").addEventListener("click", () => bulkSetPinned(true));
+el("postAdminUnpinBtn").addEventListener("click", () => bulkSetPinned(false));
+
+el("postAdminDeleteBtn").addEventListener("click", async () => {
+  if (!adminSelectedPostIds.size) return;
+  if (!confirm(`선택한 게시글 ${adminSelectedPostIds.size}개를 삭제할까요? 되돌릴 수 없어요.`)) return;
+  await Promise.all([...adminSelectedPostIds].map(id => deleteDoc(doc(db, "posts", id))));
+  invalidateBoardCache();
+  loadPostAdminList();
+});
+
+el("postAdminMoveBtn").addEventListener("click", async () => {
+  if (!adminSelectedPostIds.size) return;
+  const targetId = el("postAdminMoveSelect").value;
+  const targetBoard = boardRows.find(b => b.id === targetId);
+  if (!targetBoard) return;
+  if (!confirm(`선택한 게시글 ${adminSelectedPostIds.size}개를 "${targetBoard.name}"(으)로 이동할까요?`)) return;
+  await Promise.all([...adminSelectedPostIds].map(id =>
+    updateDoc(doc(db, "posts", id), { boardId: targetId, isPrivate: !!targetBoard.isPrivate })
+  ));
+  invalidateBoardCache();
+  loadPostAdminList();
+});
+
+// ---------- 통계 ----------
+async function loadStats() {
+  const gridEl = el("statsSummaryGrid");
+  const boardEl = el("statsBoardBreakdown");
+  const topEl = el("statsTopPosts");
+  gridEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  boardEl.innerHTML = "";
+  topEl.innerHTML = "";
+
+  let postsSnap, membersSnap;
+  try {
+    [postsSnap, membersSnap] = await Promise.all([
+      getDocs(collection(db, "posts")),
+      getDocs(collection(db, "members")),
+    ]);
+  } catch (err) {
+    gridEl.innerHTML = `<p class="empty-state">불러오지 못했어요. (${err.code || err.message})</p>`;
+    return;
+  }
+
+  const postDatas = postsSnap.docs.map(d => d.data());
+  const totalPosts = postDatas.length;
+  const totalViews = postDatas.reduce((sum, p) => sum + (p.views || 0), 0);
+  const totalBoards = boardRows.filter(r => r.type === "board").length;
+  const approvedMembers = membersSnap.docs.filter(d => d.data().approved !== false).length;
+
+  gridEl.innerHTML = `
+    <div class="stat-card"><div class="stat-num">${totalPosts}</div><div class="stat-label">전체 게시글</div></div>
+    <div class="stat-card"><div class="stat-num">${totalViews}</div><div class="stat-label">전체 조회수</div></div>
+    <div class="stat-card"><div class="stat-num">${totalBoards}</div><div class="stat-label">게시판 수</div></div>
+    <div class="stat-card"><div class="stat-num">${approvedMembers}</div><div class="stat-label">승인된 회원</div></div>
+  `;
+
+  const countByBoard = new Map();
+  postDatas.forEach(p => countByBoard.set(p.boardId, (countByBoard.get(p.boardId) || 0) + 1));
+  const breakdown = boardRows.filter(r => r.type === "board")
+    .map(b => ({ name: b.name, count: countByBoard.get(b.id) || 0 }))
+    .sort((a, b) => b.count - a.count);
+  boardEl.innerHTML = breakdown.length
+    ? breakdown.map(b => `<div class="manage-row"><span class="manage-row-label">${escapeHtml(b.name)}</span><span class="hint-text" style="margin:0;">${b.count}개</span></div>`).join("")
+    : `<p class="empty-state">게시판이 없어요.</p>`;
+
+  const top = postsSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.views || 0) - (a.views || 0))
+    .slice(0, 5);
+  topEl.innerHTML = top.length
+    ? top.map(p => `<div class="manage-row" style="cursor:pointer;" data-id="${p.id}"><span class="manage-row-label">${escapeHtml(p.title)}</span><span class="hint-text" style="margin:0;">👁 ${p.views || 0}</span></div>`).join("")
+    : `<p class="empty-state">아직 게시글이 없어요.</p>`;
+  topEl.querySelectorAll("[data-id]").forEach(rowEl => {
+    rowEl.addEventListener("click", () => openPost(rowEl.dataset.id));
+  });
 }
 
 // ---------- 이미지 확대보기(라이트박스) ----------
@@ -1541,6 +1814,7 @@ function escapeHtml(str) {
 
 renderBoardTree();
 showHomeDashboard();
+loadSiteConfig();
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {

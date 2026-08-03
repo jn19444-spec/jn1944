@@ -41,9 +41,9 @@
   <!-- 좌측 사이드바 -->
   <aside class="sidebar">
     <div class="profile-card">
-      <div class="profile-avatar">🐦</div>
-      <div class="profile-title">+구구+</div>
-      <div class="profile-sub">개인 팬 아카이브 홈페이지</div>
+      <div class="profile-avatar" id="profileAvatar">🐦</div>
+      <div class="profile-title" id="profileTitle">+구구+</div>
+      <div class="profile-sub" id="profileSub">개인 팬 아카이브 홈페이지</div>
     </div>
 
     <div class="search-box">
@@ -52,8 +52,6 @@
     </div>
 
     <nav id="boardTree" class="board-tree"></nav>
-
-    <button id="manageBoardsBtn" class="btn btn-ghost manage-toggle-btn hidden">⚙ 게시판 관리</button>
   </aside>
 
   <!-- 메인 콘텐츠 -->
@@ -121,6 +119,10 @@
 
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="members">👥 회원 관리 <span id="pendingBadge" class="pending-badge hidden"></span></button>
+        <button class="admin-tab" data-tab="posts">✅ 게시글 관리</button>
+        <button class="admin-tab" data-tab="boards">📄 게시판 관리</button>
+        <button class="admin-tab" data-tab="stats">📊 통계</button>
+        <button class="admin-tab" data-tab="site">⚙ 사이트 설정</button>
         <button class="admin-tab" data-tab="images">🔄 이미지 재업로드</button>
         <button class="admin-tab" data-tab="backup">💾 전체 백업</button>
       </div>
@@ -141,6 +143,67 @@
           <button id="approveAllBtn" class="btn btn-ghost btn-sm hidden">✓ 대기 회원 전체 승인</button>
         </div>
         <div id="memberList" class="manage-list"></div>
+      </div>
+
+      <!-- 게시글 일괄 관리 -->
+      <div id="adminTabPosts" class="admin-panel hidden">
+        <p class="hint-text">체크박스로 여러 게시글을 골라 한번에 이동/삭제하거나 고정할 수 있어요. 📌 고정한 글은 목록 맨 위에 표시돼요.</p>
+        <div class="post-admin-toolbar">
+          <input type="text" id="postAdminSearchInput" placeholder="🔍 제목 검색">
+          <select id="postAdminBoardFilter" class="admin-select"><option value="">전체 게시판</option></select>
+        </div>
+        <div class="post-admin-bulkbar">
+          <label class="checkbox-label"><input type="checkbox" id="postAdminSelectAll"> 전체선택</label>
+          <span id="postAdminSelectedCount" class="hint-text" style="margin:0;"></span>
+          <div class="post-admin-bulk-actions">
+            <select id="postAdminMoveSelect" class="admin-select"></select>
+            <button id="postAdminMoveBtn" class="btn btn-ghost btn-sm">선택 이동</button>
+            <button id="postAdminPinBtn" class="btn btn-ghost btn-sm">📌 선택 고정</button>
+            <button id="postAdminUnpinBtn" class="btn btn-ghost btn-sm">고정 해제</button>
+            <button id="postAdminDeleteBtn" class="btn btn-ghost btn-sm danger-btn">선택 삭제</button>
+          </div>
+        </div>
+        <div id="postAdminList" class="manage-list"></div>
+      </div>
+
+      <!-- 게시판 관리 -->
+      <div id="adminTabBoards" class="admin-panel hidden">
+        <div class="manage-add-row">
+          <input type="text" id="manageNameInput" placeholder="이름 입력 (예: 잡담)">
+          <label class="checkbox-label">
+            <input type="checkbox" id="managePrivateCheck"> 비공개 게시판으로
+          </label>
+          <div class="manage-add-buttons">
+            <button id="manageAddBoardBtn" class="btn btn-ghost">📄 게시판 추가</button>
+            <button id="manageAddGroupBtn" class="btn btn-ghost">T 그룹 제목 추가</button>
+            <button id="manageAddDividerBtn" class="btn btn-ghost">⋯ 구분선 추가</button>
+          </div>
+        </div>
+        <div id="manageList" class="manage-list"></div>
+      </div>
+
+      <!-- 통계 -->
+      <div id="adminTabStats" class="admin-panel hidden">
+        <div id="statsSummaryGrid" class="stats-grid"></div>
+        <h3 class="admin-subtitle">게시판별 글 수</h3>
+        <div id="statsBoardBreakdown" class="manage-list"></div>
+        <h3 class="admin-subtitle">조회수 TOP 5</h3>
+        <div id="statsTopPosts" class="manage-list"></div>
+      </div>
+
+      <!-- 사이트 설정 -->
+      <div id="adminTabSite" class="admin-panel hidden">
+        <p class="hint-text">사이드바 프로필 카드에 보이는 문구를 코드 수정 없이 바로 바꿀 수 있어요.</p>
+        <div class="site-settings-form">
+          <label class="settings-label">프로필 이모지</label>
+          <input type="text" id="siteAvatarInput" placeholder="🐦" maxlength="4">
+          <label class="settings-label">사이트 이름</label>
+          <input type="text" id="siteNameInput" placeholder="+구구+">
+          <label class="settings-label">소개 문구</label>
+          <input type="text" id="siteTaglineInput" placeholder="개인 팬 아카이브 홈페이지">
+          <button id="siteSettingsSaveBtn" class="btn btn-primary settings-save-btn">저장</button>
+          <span id="siteSettingsStatus" class="hint-text" style="margin:8px 0 0;"></span>
+        </div>
       </div>
 
       <!-- 이미지 재업로드 -->
@@ -186,30 +249,6 @@
       <button id="signupCancelBtn" class="btn btn-ghost">닫기</button>
       <button id="signupSubmitBtn" class="btn btn-primary">가입하기</button>
     </div>
-  </div>
-</div>
-
-<!-- 게시판 관리 모달 (관리자 전용) -->
-<div id="manageModal" class="modal hidden">
-  <div class="modal-box manage-box">
-    <div class="manage-header">
-      <h3>게시판 관리</h3>
-      <button id="manageCloseBtn" class="btn btn-ghost">닫기</button>
-    </div>
-
-    <div class="manage-add-row">
-      <input type="text" id="manageNameInput" placeholder="이름 입력 (예: 잡담)">
-      <label class="checkbox-label">
-        <input type="checkbox" id="managePrivateCheck"> 비공개 게시판으로
-      </label>
-      <div class="manage-add-buttons">
-        <button id="manageAddBoardBtn" class="btn btn-ghost">📄 게시판 추가</button>
-        <button id="manageAddGroupBtn" class="btn btn-ghost">T 그룹 제목 추가</button>
-        <button id="manageAddDividerBtn" class="btn btn-ghost">⋯ 구분선 추가</button>
-      </div>
-    </div>
-
-    <div id="manageList" class="manage-list"></div>
   </div>
 </div>
 
