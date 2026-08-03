@@ -448,6 +448,25 @@ body{
 .manage-row-actions button:hover{color:var(--accent-teal); background:var(--bg-panel);}
 .manage-row-actions button.danger:hover{color:var(--accent-rose);}
 
+/* ---------- 관리자 메뉴 (전체 화면) ---------- */
+.admin-tabs{
+  display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;
+  border-bottom:1px solid var(--line); padding-bottom:12px;
+}
+.admin-tab{
+  background:transparent; border:1px solid var(--line); color:var(--text-dim);
+  border-radius:999px; padding:8px 16px; font-size:13px; cursor:pointer;
+  font-family:var(--font-body);
+}
+.admin-tab:hover{ border-color:var(--accent-teal); color:var(--accent-teal); }
+.admin-tab.active{
+  background:var(--accent-teal); border-color:var(--accent-teal); color:#04211e; font-weight:700;
+}
+.admin-panel{
+  background:var(--bg-panel); border:1px solid var(--line);
+  border-radius:var(--radius); padding:22px; max-width:820px;
+}
+
 /* ---------- 이미지 로딩중 / 에러 표시 (공통) ---------- */
 .img-wrap{
   position:relative; display:block; overflow:hidden;
