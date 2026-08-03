@@ -86,6 +86,10 @@ function invalidateBoardCache(boardId) {
   else postsCache.clear(); // 인자 없이 호출하면 전체 캐시를 비움(대량 작업 후)
 }
 
+// 게시판을 빠르게 이동/검색할 때, 먼저 보낸 요청이 늦게 응답이 와서
+// 나중 화면을 덮어쓰지 않도록 "가장 최근 요청"만 반영되게 하는 장치
+let navToken = 0;
+
 // 배열을 한 번에 limit개씩 동시에 처리 (전부 한꺼번에 하면 브라우저/ImgBB에 부담이 커서 개수를 제한함)
 async function mapWithConcurrency(items, limit, fn) {
   const results = new Array(items.length);
@@ -720,6 +724,7 @@ el("searchInput").addEventListener("keydown", (e) => {
 async function performSearch() {
   const keyword = el("searchInput").value.trim();
   if (!keyword) return;
+  const myToken = ++navToken;
 
   currentBoardId = "__search__";
   currentBoard = null;
@@ -751,6 +756,7 @@ async function performSearch() {
     }
   }));
   let entries = perBoard.flat();
+  if (myToken !== navToken) return; // 그 사이에 다른 화면으로 이동했으면 이 결과는 버림
   if (!entries.length) {
     listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
@@ -890,35 +896,42 @@ el("postImageFiles").addEventListener("change", async (e) => {
 el("postForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!isAdmin) return;
-  const title = el("postTitle").value.trim();
-  const content = el("postContent").value.trim();
-  const imageUrls = selectedImageUrls.slice();
-  const imageThumbUrls = selectedImageThumbUrls.slice();
+  const submitBtn = el("postForm").querySelector('button[type="submit"]');
+  if (submitBtn.disabled) return; // 이미 처리 중이면 중복 클릭 무시
+  submitBtn.disabled = true;
+  try {
+    const title = el("postTitle").value.trim();
+    const content = el("postContent").value.trim();
+    const imageUrls = selectedImageUrls.slice();
+    const imageThumbUrls = selectedImageThumbUrls.slice();
 
-  if (editingPostId) {
-    await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls });
-    invalidateBoardCache(editingPostBoardId);
-    const idToReopen = editingPostId;
-    editingPostId = null;
+    if (editingPostId) {
+      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls });
+      invalidateBoardCache(editingPostBoardId);
+      const idToReopen = editingPostId;
+      editingPostId = null;
+      el("postForm").reset();
+      resetImageUploadUI();
+      openPost(idToReopen);
+      return;
+    }
+
+    await addDoc(collection(db, "posts"), {
+      boardId: currentBoardId,
+      title, content, imageUrls, imageThumbUrls,
+      author: currentUser.email.split("@")[0],
+      createdAt: serverTimestamp(),
+      views: 0,
+      isPrivate: !!(currentBoard && currentBoard.isPrivate),
+    });
+    invalidateBoardCache(currentBoardId);
     el("postForm").reset();
     resetImageUploadUI();
-    openPost(idToReopen);
-    return;
+    showListView();
+    loadPosts(currentBoardId);
+  } finally {
+    submitBtn.disabled = false;
   }
-
-  await addDoc(collection(db, "posts"), {
-    boardId: currentBoardId,
-    title, content, imageUrls, imageThumbUrls,
-    author: currentUser.email.split("@")[0],
-    createdAt: serverTimestamp(),
-    views: 0,
-    isPrivate: !!(currentBoard && currentBoard.isPrivate),
-  });
-  invalidateBoardCache(currentBoardId);
-  el("postForm").reset();
-  resetImageUploadUI();
-  showListView();
-  loadPosts(currentBoardId);
 });
 
 function renderPostCard(docSnap, opts) {
@@ -1007,6 +1020,7 @@ function renderLoadMoreControl() {
 
 // ---------- 목록 불러오기 (게시판 1개) ----------
 async function loadPosts(boardId) {
+  const myToken = ++navToken;
   const listEl = el("postList");
   const wasCached = postsCache.has(boardId);
   if (!wasCached) listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
@@ -1016,9 +1030,11 @@ async function loadPosts(boardId) {
   try {
     docs = await fetchBoardPosts(boardId);
   } catch (err) {
+    if (myToken !== navToken) return;
     listEl.innerHTML = `<p class="empty-state">게시글을 불러오지 못했어요. (${err.code || err.message})</p>`;
     return;
   }
+  if (myToken !== navToken) return; // 그 사이에 다른 게시판으로 이동했으면 이 결과는 버림
   if (!docs.length) {
     listEl.innerHTML = "";
     el("emptyState").classList.remove("hidden");
@@ -1031,6 +1047,7 @@ async function loadPosts(boardId) {
 
 // ---------- 목록 불러오기 (전체 게시판) ----------
 async function loadAllPosts() {
+  const myToken = ++navToken;
   const listEl = el("postList");
   listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
   el("emptyState").classList.add("hidden");
@@ -1044,6 +1061,7 @@ async function loadAllPosts() {
       return []; // 개별 게시판 조회 실패는 건너뛰고 나머지는 계속 보여줌
     }
   }));
+  if (myToken !== navToken) return; // 그 사이에 다른 화면으로 이동했으면 이 결과는 버림
   let entries = perBoard.flat();
   if (!entries.length) {
     listEl.innerHTML = "";
@@ -1236,8 +1254,10 @@ async function moveRow(idx, dir) {
   const a = boardRows[idx];
   const b = boardRows[otherIdx];
   const orderA = a.order, orderB = b.order;
-  await updateDoc(doc(db, "boards", a.id), { order: orderB });
-  await updateDoc(doc(db, "boards", b.id), { order: orderA });
+  await Promise.all([
+    updateDoc(doc(db, "boards", a.id), { order: orderB }),
+    updateDoc(doc(db, "boards", b.id), { order: orderA }),
+  ]);
   await loadBoardConfig();
   renderManageList();
 }
