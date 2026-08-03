@@ -1,6 +1,6 @@
 // 서비스워커: 사이트 껍데기(HTML/CSS/JS/아이콘)만 캐싱해서 재방문 시 빠르게 뜨게 해요.
 // 게시글/이미지 데이터는 Firebase·ImgBB에서 오는 거라 여기서는 건드리지 않아요(항상 최신 데이터를 가져옴).
-const CACHE_NAME = "gugu-shell-v1";
+const CACHE_NAME = "gugu-shell-v2";
 const PRECACHE_URLS = [
   "./",
   "./index.html",

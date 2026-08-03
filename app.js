@@ -109,8 +109,14 @@ async function mapWithConcurrency(items, limit, fn) {
 // SOOP처럼 주소가 /board, /board/<postId> 형태로 남게 해서, 새로고침하거나 링크를 그대로
 // 공유해도 같은 화면이 열리게 해요. (실제로 동작하려면 호스팅에서 이 경로들을 전부
 // index.html로 보내주는 SPA rewrite 설정이 필요해요 — 같이 드리는 설정 파일 참고)
+//
+// 사이트가 도메인 맨 루트(Firebase/Vercel)가 아니라 GitHub Pages처럼 저장소 이름이 붙은
+// 하위 경로(예: /jn1944/)에 있을 수도 있어서, app.js가 실제로 로드된 위치를 기준으로
+// 그 하위 경로를 자동으로 찾아내요. 이러면 배포 위치가 바뀌어도 코드 수정이 필요 없어요.
+const BASE_PATH = new URL(".", import.meta.url).pathname.replace(/\/$/, ""); // "" 또는 "/jn1944"
+
 function buildUrl(path, params) {
-  const url = new URL(location.origin + path);
+  const url = new URL(location.origin + BASE_PATH + path);
   if (params) Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   return url.pathname + url.search;
 }
@@ -123,7 +129,9 @@ function replaceUrl(path, params) {
 }
 
 async function routeFromLocation() {
-  const path = location.pathname.replace(/\/index\.html$/, "/").replace(/\/+$/, "") || "/";
+  let rawPath = location.pathname;
+  if (BASE_PATH && rawPath.startsWith(BASE_PATH)) rawPath = rawPath.slice(BASE_PATH.length);
+  const path = rawPath.replace(/\/index\.html$/, "/").replace(/\/+$/, "") || "/";
   const params = new URLSearchParams(location.search);
 
   if (path === "/admin") {
