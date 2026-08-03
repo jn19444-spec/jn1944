@@ -157,36 +157,24 @@ body{
   padding:3px 10px; margin-left:8px; vertical-align:middle;
 }
 
-/* ---------- 대표화면(홈 배너) ---------- */
-.home-banner{
-  position:relative;
-  display:flex; flex-direction:column; align-items:center; text-align:center;
-  gap:14px;
-  padding:48px 24px;
-  margin-bottom:20px;
-  background:var(--bg-panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
+/* ---------- 메인화면 (게시판 바로가기 + 최근 게시글) ---------- */
+.home-dashboard{ display:flex; flex-direction:column; gap:28px; margin-bottom:24px; }
+.home-section-title{
+  font-family:var(--font-display); font-weight:400; font-size:18px;
+  margin:0 0 14px;
 }
-.home-banner-media{
-  position:relative;
-  width:104px; height:104px; border-radius:50%;
-  overflow:hidden; flex-shrink:0;
-  background:var(--bg-panel-2);
-  display:flex; align-items:center; justify-content:center;
+.board-shortcut-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+  gap:12px;
 }
-.home-banner-media img{ width:100%; height:100%; object-fit:cover; }
-.home-banner-noimg{ font-size:44px; }
-.home-banner-text h2{
-  font-family:var(--font-display); font-weight:400; font-size:24px; margin:0 0 6px;
+.board-shortcut-card{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px 14px; text-align:center; cursor:pointer;
+  transition:border-color .15s ease, transform .1s ease;
 }
-.home-banner-text p{
-  font-size:14px; color:var(--text-dim); margin:0; max-width:440px;
-  white-space:pre-line; line-height:1.5;
-}
-.home-banner-edit-btn{
-  position:absolute; top:14px; right:14px;
-}
+.board-shortcut-card:hover{ border-color:var(--accent-teal); transform:translateY(-2px); }
+.board-shortcut-card .shortcut-group{ font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+.board-shortcut-card .shortcut-name{ font-size:14px; font-weight:700; }
 
 .post-list{display:flex; flex-direction:column; gap:14px;}
 .post-card{
@@ -494,8 +482,6 @@ body{
 .img-wrap.detail-wrap.img-loaded{ background:transparent; }
 /* 글쓰기 미리보기 썸네일 */
 .image-preview-item .img-wrap{ width:100%; height:100%; border-radius:inherit; }
-/* 대표화면(홈 배너) 이미지 */
-.home-banner-media .img-wrap{ width:100%; height:100%; border-radius:50%; }
 
 /* ---------- 이미지 확대보기(라이트박스) ---------- */
 .lightbox{

@@ -570,7 +570,7 @@ function selectBoard(row) {
   el("currentBoardName").textContent = row.name;
   el("writeBtn").classList.toggle("hidden", !isAdmin);
   showListView();
-  hideHomeBanner();
+  hideHomeDashboard();
   renderBoardTree();
   loadPosts(row.id);
 }
@@ -581,7 +581,7 @@ function selectAllBoards() {
   el("currentBoardName").textContent = "📋 전체 게시판";
   el("writeBtn").classList.add("hidden"); // 전체 게시판에서는 글쓰기 불가(게시판을 골라야 함)
   showListView();
-  hideHomeBanner();
+  hideHomeDashboard();
   renderBoardTree();
   loadAllPosts();
 }
@@ -605,12 +605,14 @@ function showDetailView() {
   el("detailView").classList.remove("hidden");
 }
 
-function showHomeBanner() {
-  el("homeBanner").classList.remove("hidden");
+function showHomeDashboard() {
+  el("homeDashboard").classList.remove("hidden");
   el("listContentHeader").classList.add("hidden");
+  renderBoardShortcuts();
+  loadRecentPosts();
 }
-function hideHomeBanner() {
-  el("homeBanner").classList.add("hidden");
+function hideHomeDashboard() {
+  el("homeDashboard").classList.add("hidden");
   el("listContentHeader").classList.remove("hidden");
 }
 
@@ -623,97 +625,63 @@ el("homeBtn").addEventListener("click", () => {
   el("emptyState").classList.add("hidden");
   el("pagination").classList.add("hidden");
   showListView();
-  showHomeBanner();
+  showHomeDashboard();
   renderBoardTree();
 });
 
-// ---------- 대표화면(홈 배너) ----------
-// config/site 문서에 같이 저장돼요(관리자 판별에 쓰는 문서와 동일). 모두가 읽을 수 있고 관리자만 수정 가능해요.
-let siteConfig = {};
-let homeBannerDraftImageUrl = null;
-
-async function loadHomeBanner() {
-  try {
-    const snap = await getDoc(doc(db, "config", "site"));
-    siteConfig = snap.exists() ? snap.data() : {};
-  } catch (e) {
-    siteConfig = {};
+// ---------- 메인화면: 게시판 바로가기 ----------
+function renderBoardShortcuts() {
+  const wrap = el("boardShortcuts");
+  wrap.innerHTML = "";
+  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  if (!boards.length) {
+    wrap.innerHTML = `<p class="empty-state" style="grid-column:1/-1;">아직 게시판이 없어요.</p>`;
+    return;
   }
-  renderHomeBanner();
-}
-
-function renderHomeBanner() {
-  const hasImg = !!siteConfig.homeBannerImageUrl;
-  el("homeBannerImg").classList.add("hidden");
-  el("homeBannerNoImg").classList.add("hidden");
-  el("homeBannerSpinner").classList.toggle("hidden", !hasImg);
-  el("homeBannerImg").src = hasImg ? siteConfig.homeBannerImageUrl : "";
-  if (!hasImg) el("homeBannerNoImg").classList.remove("hidden");
-  el("homeBannerTitle").textContent = siteConfig.homeBannerTitle || "+구구+ 팬 홈페이지";
-  el("homeBannerDesc").textContent = siteConfig.homeBannerDesc || "왼쪽에서 게시판을 선택해 시작해보세요.";
-  el("editHomeBannerBtn").classList.toggle("hidden", !isAdmin);
-}
-
-el("editHomeBannerBtn").addEventListener("click", () => {
-  homeBannerDraftImageUrl = siteConfig.homeBannerImageUrl || null;
-  el("homeBannerTitleInput").value = siteConfig.homeBannerTitle || "";
-  el("homeBannerDescInput").value = siteConfig.homeBannerDesc || "";
-  el("homeBannerImageStatus").classList.add("hidden");
-  renderHomeBannerImagePreview();
-  el("homeBannerModal").classList.remove("hidden");
-});
-el("homeBannerCancelBtn").addEventListener("click", () => el("homeBannerModal").classList.add("hidden"));
-
-el("homeBannerImageFile").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const statusEl = el("homeBannerImageStatus");
-  statusEl.classList.remove("hidden", "error");
-  statusEl.textContent = "업로드 중...";
-  try {
-    ({ url: homeBannerDraftImageUrl } = await uploadToImgBB(file));
-    statusEl.textContent = "업로드 완료 ✓";
-    renderHomeBannerImagePreview();
-  } catch (err) {
-    statusEl.textContent = "업로드 실패: " + err.message;
-    statusEl.classList.add("error");
-  }
-  e.target.value = "";
-});
-
-function renderHomeBannerImagePreview() {
-  const listEl = el("homeBannerImagePreview");
-  listEl.innerHTML = "";
-  if (!homeBannerDraftImageUrl) return;
-  const item = document.createElement("div");
-  item.className = "image-preview-item";
-  item.innerHTML = `${imgWrap(homeBannerDraftImageUrl)}<button class="image-preview-remove" type="button" title="삭제">✕</button>`;
-  item.querySelector("button").addEventListener("click", () => {
-    homeBannerDraftImageUrl = null;
-    renderHomeBannerImagePreview();
+  // 각 게시판 바로 위에 있던 그룹 제목을 같이 보여줘서 어디 소속인지 알 수 있게 함
+  let lastGroup = "";
+  boardRows.forEach(row => {
+    if (row.type === "group") { lastGroup = row.name; return; }
+    if (row.type !== "board") return;
+    if (row.isPrivate && !(isAdmin || canViewPrivate)) return;
+    const card = document.createElement("div");
+    card.className = "board-shortcut-card";
+    card.innerHTML = `
+      ${lastGroup ? `<div class="shortcut-group">${escapeHtml(lastGroup)}</div>` : ""}
+      <div class="shortcut-name">${row.isPrivate ? "🔒 " : ""}${escapeHtml(row.name)}</div>
+    `;
+    card.addEventListener("click", () => selectBoard(row));
+    wrap.appendChild(card);
   });
-  listEl.appendChild(item);
 }
 
-el("homeBannerSaveBtn").addEventListener("click", async () => {
-  const btn = el("homeBannerSaveBtn");
-  btn.disabled = true;
-  try {
-    const newData = {
-      homeBannerImageUrl: homeBannerDraftImageUrl || null,
-      homeBannerTitle: el("homeBannerTitleInput").value.trim(),
-      homeBannerDesc: el("homeBannerDescInput").value.trim(),
-    };
-    await updateDoc(doc(db, "config", "site"), newData);
-    siteConfig = { ...siteConfig, ...newData };
-    renderHomeBanner();
-    el("homeBannerModal").classList.add("hidden");
-  } catch (err) {
-    alert("저장 실패: " + (err.code || err.message));
-  } finally {
-    btn.disabled = false;
+// ---------- 메인화면: 최근 게시글 ----------
+async function loadRecentPosts() {
+  const myToken = ++navToken;
+  const listEl = el("recentPosts");
+  listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  el("recentPostsEmpty").classList.add("hidden");
+
+  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const perBoard = await Promise.all(boards.map(async (b) => {
+    try {
+      const docs = await fetchBoardPosts(b.id);
+      return docs.map(docSnap => ({ docSnap, boardName: b.name }));
+    } catch (err) {
+      return [];
+    }
+  }));
+  if (myToken !== navToken) return;
+  let entries = perBoard.flat();
+  if (!entries.length) {
+    listEl.innerHTML = "";
+    el("recentPostsEmpty").classList.remove("hidden");
+    return;
   }
-});
+  entries = sortByDateDesc(entries, e => e.docSnap.data()).slice(0, 6);
+  listEl.innerHTML = "";
+  entries.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
+}
 
 // ---------- 검색 ----------
 el("searchBtn").addEventListener("click", performSearch);
@@ -732,7 +700,7 @@ async function performSearch() {
   el("currentBoardName").textContent = `🔍 검색 결과: "${keyword}"`;
   el("writeBtn").classList.add("hidden");
   showListView();
-  hideHomeBanner();
+  hideHomeDashboard();
   renderBoardTree();
 
   const listEl = el("postList");
@@ -1277,7 +1245,7 @@ async function deleteRow(row) {
       currentBoard = null;
       el("writeBtn").classList.add("hidden");
       el("postList").innerHTML = "";
-      showHomeBanner();
+      showHomeDashboard();
     }
   }
   await deleteDoc(doc(db, "boards", row.id));
@@ -1460,8 +1428,7 @@ function escapeHtml(str) {
 }
 
 renderBoardTree();
-showHomeBanner();
-loadHomeBanner();
+showHomeDashboard();
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {
