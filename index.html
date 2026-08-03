@@ -130,7 +130,6 @@
         <button class="admin-tab" data-tab="stats">📊 통계</button>
         <button class="admin-tab" data-tab="site">⚙ 사이트 설정</button>
         <button class="admin-tab" data-tab="images">🔄 이미지 재업로드</button>
-        <button class="admin-tab" data-tab="musics">🎵 음악</button>
         <button class="admin-tab" data-tab="backup">💾 전체 백업</button>
       </div>
 
@@ -244,26 +243,6 @@
         <div id="migrateLog" class="manage-list"></div>
       </div>
 
-      <!-- 음악 관리 -->
-      <div id="adminTabMusics" class="admin-panel hidden">
-        <p class="hint-text">우측 하단 🎵 버튼에 뜨는 재생목록을 관리해요. <b>음악 파일 올리기</b>로 직접 파일(mp3 등)을 올리거나, 이미 어딘가에 올려둔 음악의 <b>직접 재생 링크(URL)</b>를 입력해도 돼요. 둘 중 하나만 있으면 돼요.</p>
-        <div class="manage-add-row">
-          <input type="text" id="musicTitleInput" placeholder="제목 (예: 좋아하는 노래)">
-          <input type="text" id="musicArtistInput" placeholder="아티스트 (선택)">
-          <input type="text" id="musicUrlInput" placeholder="음악 직접 링크 (파일을 올리면 자동으로 채워져요)">
-          <div class="image-upload-box">
-            <label for="musicFileInput" class="btn btn-ghost image-upload-label">🎵 음악 파일 올리기 (mp3 등)</label>
-            <input type="file" id="musicFileInput" accept="audio/*" class="hidden">
-            <span id="musicUploadStatus" class="image-upload-status hidden"></span>
-          </div>
-          <div class="manage-add-buttons">
-            <button id="musicSaveBtn" class="btn btn-ghost">➕ 목록에 추가</button>
-            <button id="musicCancelEditBtn" class="btn btn-ghost hidden">취소</button>
-          </div>
-        </div>
-        <div id="musicList" class="manage-list"></div>
-      </div>
-
       <!-- 전체 백업 -->
       <div id="adminTabBackup" class="admin-panel hidden">
         <p class="hint-text">모든 게시글과 게시판 구조를 JSON 파일로 내려받아요. 가끔 저장해두면 안심돼요.</p>
@@ -333,34 +312,6 @@
   <span id="lightboxSpinner" class="img-spinner hidden"></span>
   <img id="lightboxImg" src="" alt="">
   <button id="lightboxNext" class="lightbox-nav lightbox-next hidden" title="다음">›</button>
-</div>
-
-<!-- 음악 플레이어 (우측 하단 고정, 곡이 하나라도 있을 때만 보여요) -->
-<div id="musicPlayer" class="music-player hidden collapsed">
-  <button id="musicPlayerToggle" class="music-player-toggle" title="음악 플레이어 열기">🎵</button>
-  <div class="music-player-panel">
-    <div class="music-player-header">
-      <span>🎵 재생목록</span>
-      <button id="musicPlayerClose" class="music-player-close" title="접기">✕</button>
-    </div>
-    <div class="music-now-playing">
-      <div id="musicNowTitle" class="music-now-title">재생 중인 곡이 없어요</div>
-      <div id="musicNowArtist" class="music-now-artist"></div>
-    </div>
-    <div class="music-progress-row">
-      <span id="musicTimeCur" class="music-time">0:00</span>
-      <input type="range" id="musicSeek" class="music-seek" min="0" max="1000" value="0">
-      <span id="musicTimeDur" class="music-time">0:00</span>
-    </div>
-    <div class="music-controls">
-      <button id="musicPrevBtn" class="music-ctrl-btn" title="이전 곡">⏮</button>
-      <button id="musicPlayBtn" class="music-ctrl-btn music-play-btn" title="재생/일시정지">▶</button>
-      <button id="musicNextBtn" class="music-ctrl-btn" title="다음 곡">⏭</button>
-      <span class="music-volume-wrap" title="음량">🔊<input type="range" id="musicVolume" class="music-volume" min="0" max="100" value="80"></span>
-    </div>
-    <div id="musicPlaylist" class="music-playlist"></div>
-  </div>
-  <audio id="musicAudio" preload="metadata"></audio>
 </div>
 
 <script type="module" src="firebase-config.js"></script>

@@ -8,14 +8,10 @@ import {
   getFirestore, collection, query, where, orderBy, addDoc, doc,
   deleteDoc, getDocs, getDoc, setDoc, serverTimestamp, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app); // 음악 파일 업로드용 (Firebase Storage)
 
 // ImgBB 이미지 업로드용 API 키 (https://api.imgbb.com/ 에서 무료 발급)
 const IMGBB_API_KEY = "9e855746835f598edb43a283d0219413";
@@ -70,13 +66,6 @@ let topMenuItems = []; // Firestore "topMenus" 컬렉션 (order 오름차순)
 let topMenuImageUrls = []; // 상단메뉴 편집 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let topMenuImageThumbUrls = []; // 위 이미지들과 같은 순서의 작은 썸네일 URL
 let editingTopMenuId = null; // null이면 새 메뉴 추가, 값이 있으면 그 메뉴를 수정하는 중
-
-// ---------- 음악 플레이어 상태 ----------
-let musics = []; // Firestore "musics" 컬렉션 (order 오름차순)
-let editingMusicId = null; // null이면 새 곡 추가, 값이 있으면 그 곡을 수정하는 중
-let musicUploadedUrl = ""; // 관리자가 방금 업로드한 파일의 재생 링크(자동으로 URL칸에 채워짐)
-let currentTrackIndex = -1; // 지금 재생 중(또는 마지막 재생)인 곡의 musics 배열 인덱스
-let musicIsPlaying = false;
 
 const POSTS_PER_PAGE = 15; // 한 번에 보여줄 게시글 수 (더보기/무한스크롤 배치 크기)
 let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글들 (최신순 정렬됨)
@@ -390,7 +379,6 @@ const ADMIN_TAB_LOADERS = {
   topmenu: loadTopMenuAdminTab,
   stats: loadStats,
   site: fillSiteSettingsForm,
-  musics: loadMusicAdminTab,
 };
 
 function activateAdminTab(tabName) {
