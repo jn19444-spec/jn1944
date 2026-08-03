@@ -65,6 +65,14 @@ const POSTS_PER_PAGE = 15; // 한 번에 보여줄 게시글 수 (더보기/무�
 let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글들 (최신순 정렬됨)
 let currentVisibleCount = 0; // 지금까지 화면에 표시된 개수
 
+// currentBoardId 상태(특정 게시판/전체 게시판/검색 결과)에 맞춰 지금 보고 있던 목록을 다시 불러와요.
+// "__all__"/"__search__"/실제 게시판ID를 다 챙겨야 해서, 흩어져 있던 분기 로직을 한 곳에 모았어요.
+function reloadCurrentView() {
+  if (currentBoardId === "__all__") loadAllPosts();
+  else if (currentBoardId === "__search__") performSearch();
+  else if (currentBoardId) loadPosts(currentBoardId);
+}
+
 const el = (id) => document.getElementById(id);
 
 // ---------- 게시판별 게시글 캐시 ----------
@@ -158,8 +166,7 @@ onAuthStateChanged(auth, async (user) => {
   el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
 
   await loadBoardConfig();
-  if (currentBoardId === "__all__") loadAllPosts();
-  else if (currentBoardId) loadPosts(currentBoardId);
+  reloadCurrentView();
 });
 
 el("loginBtn").addEventListener("click", () => el("loginModal").classList.remove("hidden"));
@@ -742,8 +749,7 @@ el("writeBtn").addEventListener("click", () => {
 el("cancelWriteBtn").addEventListener("click", () => { editingPostId = null; resetImageUploadUI(); showListView(); });
 el("backBtn").addEventListener("click", () => {
   showListView();
-  if (currentBoardId === "__all__") loadAllPosts();
-  else if (currentBoardId) loadPosts(currentBoardId);
+  reloadCurrentView();
 });
 
 // ---------- 이미지 업로드 (ImgBB) ----------
@@ -1091,7 +1097,7 @@ async function openPost(postId) {
       await deleteDoc(ref);
       invalidateBoardCache(p.boardId);
       showListView();
-      if (currentBoardId === "__all__") loadAllPosts(); else loadPosts(currentBoardId);
+      reloadCurrentView();
     });
 
     el("editPostBtn").addEventListener("click", () => {
