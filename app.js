@@ -58,7 +58,6 @@ let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
 let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
 let editingPostBoardId = null; // 수정 중인 글이 원래 속한 게시판(캐시 무효화용)
-let didInitialRoute = false; // 첫 로딩 때 한 번만 주소창(경로)을 보고 화면을 복원함
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 
@@ -104,74 +103,6 @@ async function mapWithConcurrency(items, limit, fn) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
 }
-
-// ---------- URL 라우팅 ----------
-// SOOP처럼 주소가 /board, /board/<postId> 형태로 남게 해서, 새로고침하거나 링크를 그대로
-// 공유해도 같은 화면이 열리게 해요. (실제로 동작하려면 호스팅에서 이 경로들을 전부
-// index.html로 보내주는 SPA rewrite 설정이 필요해요 — 같이 드리는 설정 파일 참고)
-function buildUrl(path, params) {
-  const url = new URL(location.origin + path);
-  if (params) Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
-  return url.pathname + url.search;
-}
-function pushUrl(path, params) {
-  const next = buildUrl(path, params);
-  if (next !== location.pathname + location.search) history.pushState(null, "", next);
-}
-function replaceUrl(path, params) {
-  history.replaceState(null, "", buildUrl(path, params));
-}
-
-async function routeFromLocation() {
-  const path = location.pathname.replace(/\/index\.html$/, "/").replace(/\/+$/, "") || "/";
-  const params = new URLSearchParams(location.search);
-
-  if (path === "/admin") {
-    if (isAdmin) {
-      showAdminView();
-      refreshPendingBadge();
-      loadMemberList();
-    } else {
-      replaceUrl("/");
-    }
-    return;
-  }
-
-  if (path === "/board") {
-    const boardId = params.get("b");
-    const keyword = params.get("q");
-    if (boardId) {
-      const row = boardRows.find(b => b.id === boardId && b.type === "board");
-      if (row && (!row.isPrivate || isAdmin || canViewPrivate)) {
-        selectBoard(row, { skipUrl: true });
-        return;
-      }
-    }
-    if (keyword) {
-      el("searchInput").value = keyword;
-      performSearch({ skipUrl: true });
-      return;
-    }
-    selectAllBoards({ skipUrl: true });
-    return;
-  }
-
-  const postMatch = path.match(/^\/board\/([^/]+)$/);
-  if (postMatch) {
-    const found = await openPost(postMatch[1], { skipUrl: true });
-    if (found === false) replaceUrl("/"); // 글이 없거나 권한이 없으면 홈으로
-    return;
-  }
-
-  // "/" 또는 모르는 경로는 홈으로
-  currentBoardId = null;
-  currentBoard = null;
-  el("writeBtn").classList.add("hidden");
-  showListView();
-  showHomeDashboard();
-  renderBoardTree();
-}
-window.addEventListener("popstate", () => { routeFromLocation(); });
 
 // ---------- 인증 상태 ----------
 onAuthStateChanged(auth, async (user) => {
@@ -227,13 +158,7 @@ onAuthStateChanged(auth, async (user) => {
   el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
 
   await loadBoardConfig();
-  if (!didInitialRoute) {
-    didInitialRoute = true;
-    await routeFromLocation();
-  } else if (!el("adminView").classList.contains("hidden")) {
-    refreshPendingBadge(); // 관리자 화면을 보는 중이면 뱃지만 갱신
-  } else if (currentBoardId === "__all__") loadAllPosts();
-  else if (currentBoardId === "__search__") performSearch({ skipUrl: true });
+  if (currentBoardId === "__all__") loadAllPosts();
   else if (currentBoardId) loadPosts(currentBoardId);
 });
 
@@ -318,34 +243,22 @@ el("signupSubmitBtn").addEventListener("click", async () => {
   }
 });
 
-// ---------- 관리자 메뉴 (전체 화면) ----------
+// ---------- 관리자 메뉴 ----------
 el("adminMenuBtn").addEventListener("click", () => {
-  showAdminView();
+  el("adminMenuModal").classList.remove("hidden");
   refreshPendingBadge();
   el("migrateStatus").textContent = "";
   el("migrateLog").innerHTML = "";
-  loadMemberList();
-  pushUrl("/admin");
 });
-el("adminBackBtn").addEventListener("click", () => {
-  showListView();
-  if (currentBoardId === "__all__") { loadAllPosts(); pushUrl("/board"); }
-  else if (currentBoardId === "__search__") { performSearch({ skipUrl: true }); pushUrl("/board", { q: el("searchInput").value.trim() }); }
-  else if (currentBoardId) { loadPosts(currentBoardId); pushUrl("/board", { b: currentBoardId }); }
-  else { showHomeDashboard(); pushUrl("/"); }
-});
-
-document.querySelectorAll(".admin-tab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
-    tab.classList.add("active");
-    document.querySelectorAll(".admin-panel").forEach(p => p.classList.add("hidden"));
-    const panel = el("adminTab" + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1));
-    if (panel) panel.classList.remove("hidden");
-  });
-});
+el("adminMenuCloseBtn").addEventListener("click", () => el("adminMenuModal").classList.add("hidden"));
 
 // ---------- 회원 관리 (승인/차단/삭제) ----------
+el("openMemberManageBtn").addEventListener("click", () => {
+  el("adminMenuModal").classList.add("hidden");
+  el("memberManageModal").classList.remove("hidden");
+  loadMemberList();
+});
+el("memberManageCloseBtn").addEventListener("click", () => el("memberManageModal").classList.add("hidden"));
 
 let allMembers = []; // Firestore에서 불러온 전체 회원 (필터/검색은 이 배열로 클라이언트에서 처리)
 let memberFilter = "all"; // all | pending | approved
@@ -650,7 +563,7 @@ function renderBoardTree() {
   });
 }
 
-function selectBoard(row, opts = {}) {
+function selectBoard(row) {
   currentBoardId = row.id;
   currentBoard = row;
   el("currentBoardName").textContent = row.name;
@@ -659,10 +572,9 @@ function selectBoard(row, opts = {}) {
   hideHomeDashboard();
   renderBoardTree();
   loadPosts(row.id);
-  if (!opts.skipUrl) pushUrl("/board", { b: row.id });
 }
 
-function selectAllBoards(opts = {}) {
+function selectAllBoards() {
   currentBoardId = "__all__";
   currentBoard = null;
   el("currentBoardName").textContent = "📋 전체 게시판";
@@ -671,7 +583,6 @@ function selectAllBoards(opts = {}) {
   hideHomeDashboard();
   renderBoardTree();
   loadAllPosts();
-  if (!opts.skipUrl) pushUrl("/board");
 }
 
 // ---------- 뷰 전환 ----------
@@ -679,13 +590,11 @@ function showListView() {
   el("listView").classList.remove("hidden");
   el("writeView").classList.add("hidden");
   el("detailView").classList.add("hidden");
-  el("adminView").classList.add("hidden");
 }
 function showWriteView() {
   el("listView").classList.add("hidden");
   el("writeView").classList.remove("hidden");
   el("detailView").classList.add("hidden");
-  el("adminView").classList.add("hidden");
   el("writeBoardLabel").textContent = currentBoard ? currentBoard.name : "";
   el("writeViewTitle").textContent = editingPostId ? "글 수정" : "글쓰기";
 }
@@ -693,13 +602,6 @@ function showDetailView() {
   el("listView").classList.add("hidden");
   el("writeView").classList.add("hidden");
   el("detailView").classList.remove("hidden");
-  el("adminView").classList.add("hidden");
-}
-function showAdminView() {
-  el("listView").classList.add("hidden");
-  el("writeView").classList.add("hidden");
-  el("detailView").classList.add("hidden");
-  el("adminView").classList.remove("hidden");
 }
 
 function showHomeDashboard() {
@@ -724,7 +626,6 @@ el("homeBtn").addEventListener("click", () => {
   showListView();
   showHomeDashboard();
   renderBoardTree();
-  pushUrl("/");
 });
 
 // ---------- 메인화면: 게시판 바로가기 ----------
@@ -787,7 +688,7 @@ el("searchInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter") performSearch();
 });
 
-async function performSearch(opts = {}) {
+async function performSearch() {
   const keyword = el("searchInput").value.trim();
   if (!keyword) return;
   const myToken = ++navToken;
@@ -800,7 +701,6 @@ async function performSearch(opts = {}) {
   showListView();
   hideHomeDashboard();
   renderBoardTree();
-  if (!opts.skipUrl) pushUrl("/board", { q: keyword });
 
   const listEl = el("postList");
   listEl.innerHTML = `<p class="empty-state">검색하는 중...</p>`;
@@ -842,10 +742,8 @@ el("writeBtn").addEventListener("click", () => {
 el("cancelWriteBtn").addEventListener("click", () => { editingPostId = null; resetImageUploadUI(); showListView(); });
 el("backBtn").addEventListener("click", () => {
   showListView();
-  if (currentBoardId === "__all__") { loadAllPosts(); pushUrl("/board"); }
-  else if (currentBoardId === "__search__") { performSearch({ skipUrl: true }); pushUrl("/board", { q: el("searchInput").value.trim() }); }
-  else if (currentBoardId) { loadPosts(currentBoardId); pushUrl("/board", { b: currentBoardId }); }
-  else { showHomeDashboard(); pushUrl("/"); }
+  if (currentBoardId === "__all__") loadAllPosts();
+  else if (currentBoardId) loadPosts(currentBoardId);
 });
 
 // ---------- 이미지 업로드 (ImgBB) ----------
@@ -1143,10 +1041,10 @@ async function loadAllPosts() {
 }
 
 // ---------- 상세보기 ----------
-async function openPost(postId, opts = {}) {
+async function openPost(postId) {
   const ref = doc(db, "posts", postId);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return false;
+  if (!snap.exists()) return;
   const p = snap.data();
   updateDoc(ref, { views: increment(1) }).catch(() => {});
 
@@ -1177,7 +1075,6 @@ async function openPost(postId, opts = {}) {
     </div>` : ""}
   `;
   showDetailView();
-  if (!opts.skipUrl) pushUrl(`/board/${postId}`);
 
   document.querySelectorAll("#postDetail .detail-img").forEach(imgEl => {
     imgEl.addEventListener("click", () => openLightbox(images, Number(imgEl.dataset.idx)));
@@ -1194,8 +1091,7 @@ async function openPost(postId, opts = {}) {
       await deleteDoc(ref);
       invalidateBoardCache(p.boardId);
       showListView();
-      if (currentBoardId === "__all__") { loadAllPosts(); pushUrl("/board"); }
-      else { loadPosts(currentBoardId); pushUrl("/board", { b: currentBoardId }); }
+      if (currentBoardId === "__all__") loadAllPosts(); else loadPosts(currentBoardId);
     });
 
     el("editPostBtn").addEventListener("click", () => {
@@ -1213,7 +1109,6 @@ async function openPost(postId, opts = {}) {
 
     el("movePostBtn").addEventListener("click", () => openMoveModal(postId, p.boardId));
   }
-  return true;
 }
 
 // ---------- 게시글 이동 ----------
