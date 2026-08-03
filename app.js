@@ -855,6 +855,93 @@ async function loadRecentPosts() {
   entries.forEach(({ docSnap, boardName }) => listEl.appendChild(renderPostCard(docSnap, { boardName })));
 }
 
+// ---------- 공지함 드롭다운 (상단바) ----------
+// 고정(📌)해둔 글들만 모아서 보여줘요. 비공개 게시판 글은 권한 있는 사람에게만 보여요(다른 목록과 동일한 필터 사용).
+async function loadNoticeDropdown() {
+  const wrap = el("noticeDropdown");
+  wrap.innerHTML = `<p class="empty-state" style="padding:20px 10px;">불러오는 중...</p>`;
+  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const perBoard = await Promise.all(boards.map(async (b) => {
+    try {
+      const docs = await fetchBoardPosts(b.id);
+      return docs.filter(d => d.data().isPinned).map(docSnap => ({ docSnap, boardName: b.name }));
+    } catch (e) {
+      return [];
+    }
+  }));
+  let entries = perBoard.flat();
+  entries = sortByDateDesc(entries, e => e.docSnap.data());
+  renderNoticeDropdown(entries);
+}
+
+function renderNoticeDropdown(entries) {
+  const wrap = el("noticeDropdown");
+  if (!entries.length) {
+    wrap.innerHTML = `<p class="empty-state" style="padding:20px 10px;">아직 등록된 공지가 없어요.</p>`;
+    return;
+  }
+  wrap.innerHTML = entries.map(({ docSnap, boardName }) => {
+    const p = docSnap.data();
+    return `<div class="notice-item" data-id="${docSnap.id}">
+      <div class="notice-item-title">📌 ${escapeHtml(p.title)}</div>
+      <div class="notice-item-meta">
+        <span class="board-tag">${escapeHtml(boardName)}</span><span>${formatDate(p.createdAt)}</span>
+        ${isAdmin ? `<span class="notice-item-actions">
+          <button data-act="unpin" title="고정 해제">해제</button>
+          <button data-act="delete" class="danger" title="삭제">삭제</button>
+        </span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  wrap.querySelectorAll(".notice-item").forEach(itemEl => {
+    const id = itemEl.dataset.id;
+    itemEl.addEventListener("click", () => {
+      closeNoticeDropdown();
+      openPost(id);
+    });
+    const unpinBtn = itemEl.querySelector('[data-act="unpin"]');
+    if (unpinBtn) {
+      unpinBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await updateDoc(doc(db, "posts", id), { isPinned: false });
+        invalidateBoardCache();
+        loadNoticeDropdown();
+      });
+    }
+    const deleteBtn = itemEl.querySelector('[data-act="delete"]');
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const p = itemEl.querySelector(".notice-item-title").textContent.replace("📌 ", "");
+        if (!confirm(`"${p}" 글을 삭제할까요? 되돌릴 수 없어요.`)) return;
+        await deleteDoc(doc(db, "posts", id));
+        invalidateBoardCache();
+        loadNoticeDropdown();
+        if (currentBoardId === "__all__") loadAllPosts();
+        else if (currentBoardId) loadPosts(currentBoardId);
+      });
+    }
+  });
+}
+
+function closeNoticeDropdown() {
+  el("noticeDropdown").classList.remove("open");
+  el("noticeDropdown").classList.add("hidden");
+  document.removeEventListener("click", onDocClickCloseNotice);
+}
+function onDocClickCloseNotice(e) {
+  if (!e.target.closest(".notice-menu-wrap")) closeNoticeDropdown();
+}
+el("noticeMenuBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const wrap = el("noticeDropdown");
+  if (wrap.classList.contains("open")) { closeNoticeDropdown(); return; }
+  wrap.classList.remove("hidden");
+  wrap.classList.add("open");
+  loadNoticeDropdown();
+  document.addEventListener("click", onDocClickCloseNotice);
+});
+
 // ---------- 검색 ----------
 el("searchBtn").addEventListener("click", performSearch);
 el("searchInput").addEventListener("keydown", (e) => {

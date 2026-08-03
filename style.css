@@ -52,6 +52,37 @@ body{
 .topbar-actions{display:flex; align-items:center; gap:10px;}
 .whoami{color:var(--text-dim); font-size:13px;}
 
+/* ---------- 공지함 드롭다운 ---------- */
+.notice-menu-wrap{ position:relative; }
+.notice-dropdown{
+  position:absolute; top:calc(100% + 10px); right:0;
+  width:320px; max-width:80vw; max-height:420px; overflow-y:auto;
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:0 16px 40px rgba(0,0,0,.5);
+  z-index:30; padding:6px;
+}
+.notice-dropdown.hidden{ display:none; }
+.notice-dropdown.open{ animation:noticeDropIn .18s ease; }
+@keyframes noticeDropIn{
+  from{ opacity:0; transform:translateY(-10px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+.notice-item{
+  padding:10px 12px; border-radius:8px; cursor:pointer;
+  border-bottom:1px solid var(--line);
+}
+.notice-item:last-child{ border-bottom:none; }
+.notice-item:hover{ background:var(--bg-panel-2); }
+.notice-item-title{ font-size:13px; font-weight:700; margin-bottom:5px; }
+.notice-item-meta{ display:flex; gap:8px; align-items:center; font-size:11px; color:var(--text-dim); flex-wrap:wrap; }
+.notice-item-actions{ margin-left:auto; display:flex; gap:2px; }
+.notice-item-actions button{
+  background:transparent; border:none; color:var(--text-dim);
+  cursor:pointer; font-size:11px; padding:2px 6px; border-radius:6px;
+}
+.notice-item-actions button:hover{ color:var(--accent-teal); background:var(--bg-panel); }
+.notice-item-actions button.danger:hover{ color:var(--accent-rose); }
+
 /* ---------- buttons ---------- */
 .btn{
   border-radius:999px;
