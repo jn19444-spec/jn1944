@@ -156,7 +156,6 @@ onAuthStateChanged(auth, async (user) => {
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
   el("manageBoardsBtn").classList.toggle("hidden", !isAdmin);
-  el("editHomeBannerBtn").classList.toggle("hidden", !isAdmin);
 
   await loadBoardConfig();
   if (currentBoardId === "__all__") loadAllPosts();
