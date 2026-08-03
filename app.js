@@ -73,6 +73,30 @@ let currentVisibleCount = 0; // 지금까지 화면에 표시된 개수
 
 const el = (id) => document.getElementById(id);
 
+// ---------- 게시판/게시글 공개 범위 ----------
+// "public"(전체 공개) / "members"(로그인한 회원에게만 공개) / "private"(권한 받은 회원+관리자만)
+// 예전 데이터는 visibility 필드가 없고 isPrivate(true/false)만 있어서, 없으면 isPrivate로부터 자동 변환해요.
+function getVisibility(row) {
+  if (!row) return "public";
+  if (row.visibility) return row.visibility;
+  return row.isPrivate ? "private" : "public";
+}
+function canViewBoard(row) {
+  const vis = getVisibility(row);
+  if (vis === "private") return isAdmin || canViewPrivate;
+  if (vis === "members") return isAdmin || !!currentUser; // 로그인만 하면(승인된 회원) 열람 가능
+  return true; // public
+}
+function visibilityIcon(row) {
+  const vis = getVisibility(row);
+  return vis === "private" ? "🔒 " : vis === "members" ? "👥 " : "";
+}
+function visibilityLabel(vis) {
+  return vis === "private" ? "🔒 비공개 (권한 받은 회원만)"
+    : vis === "members" ? "👥 회원공개 (로그인하면 누구나)"
+    : "🌐 전체공개";
+}
+
 // ---------- 게시판별 게시글 캐시 ----------
 // 게시판 A → B → 다시 A로 이동할 때마다 매번 새로 불러오지 않도록,
 // 한 번 불러온 게시판의 글 목록을 메모리에 잠깐 기억해둬요.
@@ -155,7 +179,7 @@ async function routeFromLocation() {
     const keyword = params.get("q");
     if (boardId) {
       const row = boardRows.find(b => b.id === boardId && b.type === "board");
-      if (row && (!row.isPrivate || isAdmin || canViewPrivate)) {
+      if (row && canViewBoard(row)) {
         selectBoard(row, { skipUrl: true });
         return;
       }
@@ -721,10 +745,10 @@ function renderBoardTree() {
       return;
     }
     // type === "board"
-    if (row.isPrivate && !(isAdmin || canViewPrivate)) return; // 비공개 게시판은 권한 없으면 숨김
+    if (!canViewBoard(row)) return; // 권한 없으면 숨김
     const itemDiv = document.createElement("div");
     itemDiv.className = "board-item" + (row.id === currentBoardId ? " active" : "");
-    itemDiv.innerHTML = (row.isPrivate ? '<span class="lock-icon">🔒</span> ' : '') + escapeHtml(row.name);
+    itemDiv.innerHTML = (getVisibility(row) === "private" ? '<span class="lock-icon">🔒</span> ' : visibilityIcon(row)) + escapeHtml(row.name);
     itemDiv.addEventListener("click", () => selectBoard(row));
     treeEl.appendChild(itemDiv);
   });
@@ -811,7 +835,7 @@ el("homeBtn").addEventListener("click", () => {
 function renderBoardShortcuts() {
   const wrap = el("boardShortcuts");
   wrap.innerHTML = "";
-  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
   if (!boards.length) {
     wrap.innerHTML = `<p class="empty-state" style="grid-column:1/-1;">아직 게시판이 없어요.</p>`;
     return;
@@ -821,12 +845,12 @@ function renderBoardShortcuts() {
   boardRows.forEach(row => {
     if (row.type === "group") { lastGroup = row.name; return; }
     if (row.type !== "board") return;
-    if (row.isPrivate && !(isAdmin || canViewPrivate)) return;
+    if (!canViewBoard(row)) return;
     const card = document.createElement("div");
     card.className = "board-shortcut-card";
     card.innerHTML = `
       ${lastGroup ? `<div class="shortcut-group">${escapeHtml(lastGroup)}</div>` : ""}
-      <div class="shortcut-name">${row.isPrivate ? "🔒 " : ""}${escapeHtml(row.name)}</div>
+      <div class="shortcut-name">${visibilityIcon(row)}${escapeHtml(row.name)}</div>
     `;
     card.addEventListener("click", () => selectBoard(row));
     wrap.appendChild(card);
@@ -840,7 +864,7 @@ async function loadRecentPosts() {
   listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
   el("recentPostsEmpty").classList.add("hidden");
 
-  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
   const perBoard = await Promise.all(boards.map(async (b) => {
     try {
       const docs = await fetchBoardPosts(b.id);
@@ -866,7 +890,7 @@ async function loadRecentPosts() {
 async function loadNoticeDropdown() {
   const wrap = el("noticeDropdown");
   wrap.innerHTML = `<p class="empty-state" style="padding:20px 10px;">불러오는 중...</p>`;
-  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
   const perBoard = await Promise.all(boards.map(async (b) => {
     try {
       const docs = await fetchBoardPosts(b.id);
@@ -974,7 +998,7 @@ async function performSearch(opts = {}) {
   el("pagination").classList.add("hidden");
   el("emptyState").classList.add("hidden");
 
-  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
   const lower = keyword.toLowerCase();
   const perBoard = await Promise.all(boards.map(async (b) => {
     try {
@@ -1159,6 +1183,7 @@ el("postForm").addEventListener("submit", async (e) => {
       createdAt: serverTimestamp(),
       views: 0,
       isPrivate: !!(currentBoard && currentBoard.isPrivate),
+      visibility: getVisibility(currentBoard),
     });
     invalidateBoardCache(currentBoardId);
     el("postForm").reset();
@@ -1301,7 +1326,7 @@ async function loadAllPosts() {
   listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
   el("emptyState").classList.add("hidden");
   el("pagination").classList.add("hidden");
-  const boards = boardRows.filter(r => r.type === "board" && (!r.isPrivate || isAdmin || canViewPrivate));
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
   const perBoard = await Promise.all(boards.map(async (b) => {
     try {
       const docs = await fetchBoardPosts(b.id);
@@ -1410,7 +1435,7 @@ function openMoveModal(postId, currentPostBoardId) {
   boardRows.filter(r => r.type === "board").forEach(b => {
     const opt = document.createElement("option");
     opt.value = b.id;
-    opt.textContent = (b.isPrivate ? "🔒 " : "") + b.name;
+    opt.textContent = visibilityIcon(b) + b.name;
     if (b.id === currentPostBoardId) opt.selected = true;
     sel.appendChild(opt);
   });
@@ -1421,6 +1446,7 @@ function openMoveModal(postId, currentPostBoardId) {
     await updateDoc(doc(db, "posts", postId), {
       boardId: targetId,
       isPrivate: !!(targetBoard && targetBoard.isPrivate),
+      visibility: getVisibility(targetBoard),
     });
     invalidateBoardCache(currentPostBoardId);
     invalidateBoardCache(targetId);
@@ -1436,10 +1462,10 @@ el("moveCancelBtn").addEventListener("click", () => el("moveModal").classList.ad
 el("manageAddBoardBtn").addEventListener("click", async () => {
   const name = el("manageNameInput").value.trim();
   if (!name) return;
-  const isPrivate = el("managePrivateCheck").checked;
-  await addDoc(collection(db, "boards"), { type: "board", name, isPrivate, order: nextOrder() });
+  const visibility = el("manageVisibilitySelect").value;
+  await addDoc(collection(db, "boards"), { type: "board", name, visibility, order: nextOrder() });
   el("manageNameInput").value = "";
-  el("managePrivateCheck").checked = false;
+  el("manageVisibilitySelect").value = "public";
   await loadBoardConfig();
   renderManageList();
 });
@@ -1468,12 +1494,16 @@ function renderManageList() {
     const label =
       row.type === "divider" ? "── 구분선 ──" :
       row.type === "group" ? row.name :
-      (row.isPrivate ? "🔒 " : "📄 ") + row.name;
+      visibilityIcon(row) + row.name;
 
     rowDiv.innerHTML = `
       <span class="manage-row-label">${escapeHtml(label)}</span>
       <span class="manage-row-actions">
-        ${row.type === "board" ? `<button data-act="toggle-private">${row.isPrivate ? "공개로 전환" : "비공개로 전환"}</button>` : ""}
+        ${row.type === "board" ? `<select class="admin-select" data-act="visibility-select">
+            <option value="public">🌐 전체공개</option>
+            <option value="members">👥 회원공개</option>
+            <option value="private">🔒 비공개</option>
+          </select>` : ""}
         <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
         <button data-act="down" ${idx === boardRows.length - 1 ? "disabled" : ""}>▼</button>
         <button data-act="del" class="danger">삭제</button>
@@ -1483,21 +1513,24 @@ function renderManageList() {
     rowDiv.querySelector('[data-act="down"]').addEventListener("click", () => moveRow(idx, 1));
     rowDiv.querySelector('[data-act="del"]').addEventListener("click", () => deleteRow(row));
     if (row.type === "board") {
-      rowDiv.querySelector('[data-act="toggle-private"]').addEventListener("click", () => togglePrivate(row));
+      const sel = rowDiv.querySelector('[data-act="visibility-select"]');
+      sel.value = getVisibility(row);
+      sel.addEventListener("change", () => changeBoardVisibility(row, sel.value, sel));
     }
     listEl.appendChild(rowDiv);
   });
 }
 
-async function togglePrivate(row) {
-  const newVal = !row.isPrivate;
-  const msg = newVal
-    ? `"${row.name}" 게시판을 비공개로 바꿀까요? 이 게시판의 글도 모두 비공개로 바뀌어요.`
-    : `"${row.name}" 게시판을 공개로 바꿀까요? 이 게시판의 글도 모두 공개로 바뀌어요.`;
-  if (!confirm(msg)) return;
-  await updateDoc(doc(db, "boards", row.id), { isPrivate: newVal });
+async function changeBoardVisibility(row, newVal, selEl) {
+  const oldVal = getVisibility(row);
+  if (newVal === oldVal) return;
+  if (!confirm(`"${row.name}" 게시판을 [${visibilityLabel(newVal)}]으로 바꿀까요? 이 게시판의 글도 모두 같은 공개범위로 바뀌어요.`)) {
+    if (selEl) selEl.value = oldVal; // 취소하면 원래 선택으로 되돌림
+    return;
+  }
+  await updateDoc(doc(db, "boards", row.id), { visibility: newVal, isPrivate: newVal === "private" });
   const postsSnap = await getDocs(query(collection(db, "posts"), where("boardId", "==", row.id)));
-  await Promise.all(postsSnap.docs.map(p => updateDoc(p.ref, { isPrivate: newVal })));
+  await Promise.all(postsSnap.docs.map(p => updateDoc(p.ref, { visibility: newVal, isPrivate: newVal === "private" })));
   invalidateBoardCache(row.id);
   await loadBoardConfig();
   renderManageList();
@@ -1778,9 +1811,9 @@ async function loadPostAdminList() {
   const moveSel = el("postAdminMoveSelect");
   const prevFilter = boardFilterSel.value;
   boardFilterSel.innerHTML = `<option value="">전체 게시판</option>` +
-    boards.map(b => `<option value="${b.id}">${b.isPrivate ? "🔒 " : ""}${escapeHtml(b.name)}</option>`).join("");
+    boards.map(b => `<option value="${b.id}">${visibilityIcon(b)}${escapeHtml(b.name)}</option>`).join("");
   boardFilterSel.value = prevFilter && boards.some(b => b.id === prevFilter) ? prevFilter : "";
-  moveSel.innerHTML = boards.map(b => `<option value="${b.id}">${b.isPrivate ? "🔒 " : ""}${escapeHtml(b.name)}</option>`).join("");
+  moveSel.innerHTML = boards.map(b => `<option value="${b.id}">${visibilityIcon(b)}${escapeHtml(b.name)}</option>`).join("");
 
   const boardNameById = new Map(boards.map(b => [b.id, b.name]));
   try {
@@ -1894,7 +1927,7 @@ el("postAdminMoveBtn").addEventListener("click", async () => {
   if (!targetBoard) return;
   if (!confirm(`선택한 게시글 ${adminSelectedPostIds.size}개를 "${targetBoard.name}"(으)로 이동할까요?`)) return;
   await Promise.all([...adminSelectedPostIds].map(id =>
-    updateDoc(doc(db, "posts", id), { boardId: targetId, isPrivate: !!targetBoard.isPrivate })
+    updateDoc(doc(db, "posts", id), { boardId: targetId, isPrivate: !!targetBoard.isPrivate, visibility: getVisibility(targetBoard) })
   ));
   invalidateBoardCache();
   loadPostAdminList();
@@ -2064,12 +2097,13 @@ el("backupBtn").addEventListener("click", async () => {
         imageUrls: getImages(data),
         views: data.views || 0,
         isPrivate: !!data.isPrivate,
+        visibility: getVisibility(data),
         createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : null,
       };
     });
     const backup = {
       exportedAt: new Date().toISOString(),
-      boards: boardRows.map(({ id, type, name, isPrivate, order }) => ({ id, type, name, isPrivate: !!isPrivate, order })),
+      boards: boardRows.map((row) => ({ id: row.id, type: row.type, name: row.name, isPrivate: !!row.isPrivate, visibility: getVisibility(row), order: row.order })),
       posts,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });

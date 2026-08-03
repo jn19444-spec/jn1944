@@ -20,6 +20,26 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.canViewPrivate == true;
     }
 
+    // 로그인한 승인된 회원인지 확인("회원공개" 등급 열람용)
+    function isApprovedMember() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.approved != false;
+    }
+
+    // 게시글의 공개범위를 읽어요. visibility 필드가 없는 예전 글은 isPrivate로부터 자동 변환.
+    function postVisibility(data) {
+      return data.visibility != null
+        ? data.visibility
+        : (data.isPrivate == true ? 'private' : 'public');
+    }
+    function canReadPost(data) {
+      return postVisibility(data) == 'public'
+        || isAdmin()
+        || (postVisibility(data) == 'members' && isApprovedMember())
+        || (postVisibility(data) == 'private' && canViewPrivate());
+    }
+
     // ---------- 사이트 설정(관리자가 누구인지) ----------
     // 배포 후 맨 처음 로그인하는 사람이 자동으로 관리자가 됨(딱 한 번만 생성 가능)
     match /config/site {
@@ -51,7 +71,7 @@ service cloud.firestore {
 
     // ---------- 게시글 ----------
     match /posts/{postId} {
-      allow read: if resource.data.isPrivate != true || isAdmin() || canViewPrivate();
+      allow read: if canReadPost(resource.data);
       allow create, update, delete: if isAdmin();
     }
   }

@@ -176,9 +176,11 @@
       <div id="adminTabBoards" class="admin-panel hidden">
         <div class="manage-add-row">
           <input type="text" id="manageNameInput" placeholder="이름 입력 (예: 잡담)">
-          <label class="checkbox-label">
-            <input type="checkbox" id="managePrivateCheck"> 비공개 게시판으로
-          </label>
+          <select id="manageVisibilitySelect" class="admin-select">
+            <option value="public" selected>🌐 전체공개</option>
+            <option value="members">👥 회원공개 (로그인하면 누구나)</option>
+            <option value="private">🔒 비공개 (권한 받은 회원만)</option>
+          </select>
           <div class="manage-add-buttons">
             <button id="manageAddBoardBtn" class="btn btn-ghost">📄 게시판 추가</button>
             <button id="manageAddGroupBtn" class="btn btn-ghost">T 그룹 제목 추가</button>
