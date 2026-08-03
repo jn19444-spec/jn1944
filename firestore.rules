@@ -43,6 +43,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- 상단 메뉴 (헤더 아래 바로가기 바) ----------
+    match /topMenus/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ---------- 게시글 ----------
     match /posts/{postId} {
       allow read: if resource.data.isPrivate != true || isAdmin() || canViewPrivate();

@@ -38,6 +38,7 @@
       <button id="logoutBtn" class="btn btn-ghost hidden">로그아웃</button>
     </div>
   </div>
+  <nav id="topMenuBar" class="top-menu-bar hidden"></nav>
 </header>
 
 <div class="layout">
@@ -125,6 +126,7 @@
         <button class="admin-tab active" data-tab="members">👥 회원 관리 <span id="pendingBadge" class="pending-badge hidden"></span></button>
         <button class="admin-tab" data-tab="posts">✅ 게시글 관리</button>
         <button class="admin-tab" data-tab="boards">📄 게시판 관리</button>
+        <button class="admin-tab" data-tab="topmenu">🔗 상단 메뉴</button>
         <button class="admin-tab" data-tab="stats">📊 통계</button>
         <button class="admin-tab" data-tab="site">⚙ 사이트 설정</button>
         <button class="admin-tab" data-tab="images">🔄 이미지 재업로드</button>
@@ -184,6 +186,27 @@
           </div>
         </div>
         <div id="manageList" class="manage-list"></div>
+      </div>
+
+      <!-- 상단 메뉴 관리 -->
+      <div id="adminTabTopmenu" class="admin-panel hidden">
+        <p class="hint-text">상단바에 메뉴 버튼을 추가할 수 있어요. <b>링크를 입력하면</b> 클릭 시 그 주소로 바로 이동하고, <b>링크를 비워두면</b> 아래에 적은 내용이 게시글처럼 팝업으로 열려요.</p>
+        <div class="manage-add-row">
+          <input type="text" id="topMenuNameInput" placeholder="메뉴 이름 (예: 공식 트위터, 이벤트 안내)">
+          <input type="text" id="topMenuUrlInput" placeholder="링크 URL (선택 - 비워두면 아래 내용이 표시돼요)">
+          <textarea id="topMenuContentInput" placeholder="링크가 없을 때 보여줄 내용 (선택)" rows="3"></textarea>
+          <div class="image-upload-box">
+            <label for="topMenuImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지 추가</label>
+            <input type="file" id="topMenuImageFiles" accept="image/*" multiple class="hidden">
+            <span id="topMenuImageStatus" class="image-upload-status hidden"></span>
+            <div id="topMenuImagePreviewList" class="image-preview-list"></div>
+          </div>
+          <div class="manage-add-buttons">
+            <button id="topMenuSaveBtn" class="btn btn-ghost">➕ 메뉴 추가</button>
+            <button id="topMenuCancelEditBtn" class="btn btn-ghost hidden">취소</button>
+          </div>
+        </div>
+        <div id="topMenuList" class="manage-list"></div>
       </div>
 
       <!-- 통계 -->
@@ -264,6 +287,18 @@
     <div class="form-actions">
       <button id="moveCancelBtn" class="btn btn-ghost">취소</button>
       <button id="moveConfirmBtn" class="btn btn-primary">이동하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 상단 메뉴 내용 보기 (링크가 없는 메뉴를 눌렀을 때) -->
+<div id="topMenuDetailModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="topMenuDetailTitle"></h3>
+    <div id="topMenuDetailImages"></div>
+    <div id="topMenuDetailContent" class="topmenu-detail-content"></div>
+    <div class="form-actions">
+      <button id="topMenuDetailCloseBtn" class="btn btn-ghost">닫기</button>
     </div>
   </div>
 </div>

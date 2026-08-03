@@ -52,6 +52,24 @@ body{
 .topbar-actions{display:flex; align-items:center; gap:10px;}
 .whoami{color:var(--text-dim); font-size:13px;}
 
+/* ---------- 상단 메뉴 바 ---------- */
+.top-menu-bar{
+  display:flex; gap:8px; align-items:center;
+  max-width:1160px; margin:0 auto; padding:0 20px 12px;
+  overflow-x:auto; scrollbar-width:none;
+}
+.top-menu-bar::-webkit-scrollbar{ display:none; }
+.top-menu-bar.hidden{ display:none; }
+.top-menu-link{
+  flex-shrink:0;
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-main);
+  border-radius:999px; padding:6px 14px; font-size:13px; cursor:pointer;
+  font-family:var(--font-body); text-decoration:none; white-space:nowrap;
+}
+.top-menu-link:hover{ border-color:var(--accent-teal); color:var(--accent-teal); }
+
+.topmenu-detail-content{ white-space:pre-wrap; line-height:1.6; margin-top:10px; }
+
 /* ---------- 공지함 드롭다운 ---------- */
 .notice-menu-wrap{ position:relative; }
 .notice-dropdown{
@@ -452,9 +470,10 @@ body{
   display:flex; flex-direction:column; gap:8px;
   border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:6px;
 }
-.manage-add-row input[type="text"]{
+.manage-add-row input[type="text"], .manage-add-row textarea{
   background:var(--bg-panel-2); border:1px solid var(--line);
   color:var(--text-main); border-radius:8px; padding:9px 12px; font-size:14px;
+  font-family:var(--font-body); resize:vertical;
 }
 .checkbox-label{
   display:flex; align-items:center; gap:6px;

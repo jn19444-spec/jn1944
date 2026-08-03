@@ -62,6 +62,11 @@ let didInitialRoute = false; // 첫 로딩 때 한 번만 주소창(경로)을 �
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 
+let topMenuItems = []; // Firestore "topMenus" 컬렉션 (order 오름차순)
+let topMenuImageUrls = []; // 상단메뉴 편집 폼에서 업로드된(또는 기존) 이미지 URL 목록
+let topMenuImageThumbUrls = []; // 위 이미지들과 같은 순서의 작은 썸네일 URL
+let editingTopMenuId = null; // null이면 새 메뉴 추가, 값이 있으면 그 메뉴를 수정하는 중
+
 const POSTS_PER_PAGE = 15; // 한 번에 보여줄 게시글 수 (더보기/무한스크롤 배치 크기)
 let currentListEntries = []; // 현재 목록 화면에 표시 중인 게시글들 (최신순 정렬됨)
 let currentVisibleCount = 0; // 지금까지 화면에 표시된 개수
@@ -347,6 +352,7 @@ const ADMIN_TAB_LOADERS = {
   members: loadMemberList,
   posts: loadPostAdminList,
   boards: renderManageList,
+  topmenu: loadTopMenuAdminTab,
   stats: loadStats,
   site: fillSiteSettingsForm,
 };
@@ -1534,6 +1540,229 @@ async function deleteRow(row) {
   renderManageList();
 }
 
+// ---------- 상단 메뉴 (헤더 아래 바로가기 바) ----------
+// 링크를 입력하면 그 주소로 이동하고, 비워두면 짧은 글(제목+내용+이미지)이 팝업으로 열려요.
+function normalizeUrl(u) {
+  if (!u) return "";
+  return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+}
+
+function nextTopMenuOrder() {
+  if (!topMenuItems.length) return Date.now();
+  return Math.max(...topMenuItems.map(r => r.order || 0)) + 10;
+}
+
+async function loadTopMenu() {
+  try {
+    const q = query(collection(db, "topMenus"), orderBy("order", "asc"));
+    const snap = await getDocs(q);
+    topMenuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    topMenuItems = []; // 아직 컬렉션이 없거나 읽기 실패 시 그냥 안 보여줌
+  }
+  renderTopMenuBar();
+}
+
+async function loadTopMenuAdminTab() {
+  await loadTopMenu();
+  renderTopMenuAdminList();
+}
+
+// 헤더 아래 바로가기 바 (모든 방문자에게 보임)
+function renderTopMenuBar() {
+  const bar = el("topMenuBar");
+  if (!topMenuItems.length) {
+    bar.classList.add("hidden");
+    bar.innerHTML = "";
+    return;
+  }
+  bar.classList.remove("hidden");
+  bar.innerHTML = topMenuItems.map(item => {
+    const hasUrl = !!(item.url && item.url.trim());
+    return hasUrl
+      ? `<a class="top-menu-link" href="${escapeHtml(normalizeUrl(item.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.name)}</a>`
+      : `<button type="button" class="top-menu-link" data-id="${item.id}">${escapeHtml(item.name)}</button>`;
+  }).join("");
+  bar.querySelectorAll("button.top-menu-link").forEach(btn => {
+    btn.addEventListener("click", () => openTopMenuDetail(btn.dataset.id));
+  });
+}
+
+// 링크가 없는 메뉴를 눌렀을 때 여는 팝업
+function openTopMenuDetail(id) {
+  const item = topMenuItems.find(t => t.id === id);
+  if (!item) return;
+  const images = getImages(item);
+  el("topMenuDetailTitle").textContent = item.name;
+  el("topMenuDetailImages").innerHTML = images.map((u, i) => imgWrap(u, {
+    wrapClass: "detail-wrap", imgClass: "detail-img",
+    imgAttrs: `data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async"`,
+  })).join("");
+  el("topMenuDetailContent").textContent = item.content || "";
+  el("topMenuDetailModal").classList.remove("hidden");
+  el("topMenuDetailModal").querySelectorAll(".detail-img").forEach(imgEl => {
+    imgEl.addEventListener("click", () => openLightbox(images, Number(imgEl.dataset.idx)));
+  });
+}
+function closeTopMenuDetail() {
+  el("topMenuDetailModal").classList.add("hidden");
+}
+el("topMenuDetailCloseBtn").addEventListener("click", closeTopMenuDetail);
+el("topMenuDetailModal").addEventListener("click", (e) => {
+  if (e.target.id === "topMenuDetailModal") closeTopMenuDetail();
+});
+
+// 관리자 메뉴 - 상단 메뉴 탭의 목록
+function renderTopMenuAdminList() {
+  const listEl = el("topMenuList");
+  listEl.innerHTML = "";
+  topMenuItems.forEach((item, idx) => {
+    const row = document.createElement("div");
+    row.className = "manage-row";
+    const hasUrl = !!(item.url && item.url.trim());
+    const label = (hasUrl ? "🔗 " : "📝 ") + item.name;
+    row.innerHTML = `
+      <span class="manage-row-label">${escapeHtml(label)}</span>
+      <span class="manage-row-actions">
+        <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
+        <button data-act="down" ${idx === topMenuItems.length - 1 ? "disabled" : ""}>▼</button>
+        <button data-act="edit">수정</button>
+        <button data-act="del" class="danger">삭제</button>
+      </span>
+    `;
+    row.querySelector('[data-act="up"]').addEventListener("click", () => moveTopMenu(idx, -1));
+    row.querySelector('[data-act="down"]').addEventListener("click", () => moveTopMenu(idx, 1));
+    row.querySelector('[data-act="edit"]').addEventListener("click", () => startEditTopMenu(item));
+    row.querySelector('[data-act="del"]').addEventListener("click", () => deleteTopMenu(item));
+    listEl.appendChild(row);
+  });
+}
+
+async function moveTopMenu(idx, dir) {
+  const otherIdx = idx + dir;
+  if (otherIdx < 0 || otherIdx >= topMenuItems.length) return;
+  const a = topMenuItems[idx], b = topMenuItems[otherIdx];
+  await Promise.all([
+    updateDoc(doc(db, "topMenus", a.id), { order: b.order }),
+    updateDoc(doc(db, "topMenus", b.id), { order: a.order }),
+  ]);
+  await loadTopMenu();
+  renderTopMenuAdminList();
+}
+
+async function deleteTopMenu(item) {
+  if (!confirm(`"${item.name}" 메뉴를 삭제할까요?`)) return;
+  await deleteDoc(doc(db, "topMenus", item.id));
+  if (editingTopMenuId === item.id) cancelEditTopMenu();
+  await loadTopMenu();
+  renderTopMenuAdminList();
+}
+
+function startEditTopMenu(item) {
+  editingTopMenuId = item.id;
+  el("topMenuNameInput").value = item.name || "";
+  el("topMenuUrlInput").value = item.url || "";
+  el("topMenuContentInput").value = item.content || "";
+  topMenuImageUrls = getImages(item).slice();
+  topMenuImageThumbUrls = getThumbs(item).slice();
+  renderTopMenuImagePreviews();
+  el("topMenuSaveBtn").textContent = "💾 수정 저장";
+  el("topMenuCancelEditBtn").classList.remove("hidden");
+  el("topMenuNameInput").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function cancelEditTopMenu() {
+  editingTopMenuId = null;
+  el("topMenuNameInput").value = "";
+  el("topMenuUrlInput").value = "";
+  el("topMenuContentInput").value = "";
+  topMenuImageUrls = [];
+  topMenuImageThumbUrls = [];
+  renderTopMenuImagePreviews();
+  el("topMenuSaveBtn").textContent = "➕ 메뉴 추가";
+  el("topMenuCancelEditBtn").classList.add("hidden");
+}
+el("topMenuCancelEditBtn").addEventListener("click", cancelEditTopMenu);
+
+function renderTopMenuImagePreviews() {
+  const listEl = el("topMenuImagePreviewList");
+  listEl.innerHTML = "";
+  topMenuImageUrls.forEach((url, idx) => {
+    const item = document.createElement("div");
+    item.className = "image-preview-item";
+    item.innerHTML = `${imgWrap(topMenuImageThumbUrls[idx] || url, { imgAttrs: 'loading="lazy"' })}<button type="button" class="image-preview-remove" title="삭제">✕</button>`;
+    item.querySelector(".image-preview-remove").addEventListener("click", () => {
+      topMenuImageUrls.splice(idx, 1);
+      topMenuImageThumbUrls.splice(idx, 1);
+      renderTopMenuImagePreviews();
+    });
+    listEl.appendChild(item);
+  });
+}
+
+el("topMenuImageFiles").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  const statusEl = el("topMenuImageStatus");
+  statusEl.classList.remove("hidden", "error");
+  statusEl.textContent = `이미지 업로드 중... (0/${files.length})`;
+  let done = 0;
+  let hadError = false;
+
+  const results = await Promise.all(files.map(file =>
+    uploadToImgBB(file)
+      .then((res) => {
+        done++;
+        if (!hadError) statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
+        return { ok: true, url: res.url, thumbUrl: res.thumbUrl };
+      })
+      .catch((err) => {
+        done++;
+        hadError = true;
+        statusEl.classList.add("error");
+        statusEl.textContent = `업로드 실패: ${err.message}`;
+        return { ok: false };
+      })
+  ));
+
+  results.forEach((r) => {
+    if (!r.ok) return;
+    topMenuImageUrls.push(r.url);
+    topMenuImageThumbUrls.push(r.thumbUrl);
+  });
+  renderTopMenuImagePreviews();
+
+  if (!hadError) statusEl.classList.add("hidden");
+  el("topMenuImageFiles").value = "";
+});
+
+el("topMenuSaveBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
+  const name = el("topMenuNameInput").value.trim();
+  if (!name) { alert("메뉴 이름을 입력해주세요."); return; }
+  const url = el("topMenuUrlInput").value.trim();
+  const content = el("topMenuContentInput").value.trim();
+  const imageUrls = topMenuImageUrls.slice();
+  const imageThumbUrls = topMenuImageThumbUrls.slice();
+  const btn = el("topMenuSaveBtn");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    if (editingTopMenuId) {
+      await updateDoc(doc(db, "topMenus", editingTopMenuId), { name, url, content, imageUrls, imageThumbUrls });
+    } else {
+      await addDoc(collection(db, "topMenus"), { name, url, content, imageUrls, imageThumbUrls, order: nextTopMenuOrder() });
+    }
+    cancelEditTopMenu();
+    await loadTopMenu();
+    renderTopMenuAdminList();
+  } catch (err) {
+    alert("저장 실패: " + (err.code || err.message));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ---------- 게시글 일괄 관리 ----------
 let adminAllPostEntries = []; // [{docSnap, boardName}, ...] - 전체 게시글 (게시판 필터/검색은 이 배열에서 클라이언트가 처리)
 let adminSelectedPostIds = new Set();
@@ -1902,6 +2131,7 @@ function escapeHtml(str) {
 renderBoardTree();
 showHomeDashboard();
 loadSiteConfig();
+loadTopMenu();
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {
