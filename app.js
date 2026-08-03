@@ -86,6 +86,20 @@ function invalidateBoardCache(boardId) {
   else postsCache.clear(); // 인자 없이 호출하면 전체 캐시를 비움(대량 작업 후)
 }
 
+// 배열을 한 번에 limit개씩 동시에 처리 (전부 한꺼번에 하면 브라우저/ImgBB에 부담이 커서 개수를 제한함)
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await fn(items[current], current);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 // ---------- 인증 상태 ----------
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
@@ -286,52 +300,65 @@ async function migrateAllImages() {
   statusEl.textContent = "게시글을 불러오는 중...";
 
   const snap = await getDocs(collection(db, "posts"));
-  const posts = snap.docs;
-  let postsChanged = 0, imagesMigrated = 0, imagesFailed = 0;
+  const toProcess = snap.docs.filter(docSnap => {
+    const p = docSnap.data();
+    return getImages(p).length && !p.imagesResized; // 이미 처리 끝난 글은 대상에서 제외
+  });
 
-  for (let i = 0; i < posts.length; i++) {
-    const docSnap = posts[i];
+  let postsChanged = 0, imagesMigrated = 0, imagesFailed = 0, done = 0;
+  const total = toProcess.length;
+  statusEl.textContent = total ? `처리 중... (0/${total})` : "재업로드할 게시글이 없어요.";
+
+  async function processOnePost(docSnap) {
     const p = docSnap.data();
     const images = getImages(p);
-    if (!images.length || p.imagesResized) continue; // 이미 리사이즈 처리 끝난 글은 건너뜀
-    statusEl.textContent = `처리 중... (${i + 1}/${posts.length}) "${p.title || ""}"`;
-
-    const newUrls = [];
-    const newThumbUrls = [];
     const oldThumbs = getThumbs(p);
-    let changed = false;
-    let postFailed = false;
-    for (let j = 0; j < images.length; j++) {
-      const url = images[j];
+
+    // 한 게시글 안의 사진들은 동시에 가져와서 올림 (순서는 그대로 유지됨)
+    const results = await Promise.all(images.map(async (url, j) => {
       try {
         const resp = await fetch(url, { mode: "cors" });
         if (!resp.ok) throw new Error("이미지를 가져오지 못함");
         const blob = await resp.blob();
         const file = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-        const { url: newUrl, thumbUrl } = await uploadToImgBB(file); // 여기서 리사이즈 후 재업로드됨 (이미 작은 이미지/움짤은 원본 그대로 업로드)
-        newUrls.push(newUrl);
-        newThumbUrls.push(thumbUrl);
-        changed = true;
-        imagesMigrated++;
+        const { url: newUrl, thumbUrl } = await uploadToImgBB(file); // 리사이즈 후 재업로드
+        return { ok: true, url: newUrl, thumbUrl };
       } catch (err) {
-        newUrls.push(url); // 실패하면 원래 링크를 그대로 유지
-        newThumbUrls.push(oldThumbs[j] || url);
+        return { ok: false, url, thumbUrl: oldThumbs[j] || url };
+      }
+    }));
+
+    results.forEach((r, j) => {
+      if (r.ok) {
+        imagesMigrated++;
+      } else {
         imagesFailed++;
-        postFailed = true;
         const row = document.createElement("div");
         row.className = "manage-row";
-        row.innerHTML = `<span class="manage-row-label" style="color:var(--accent-rose); font-size:12px;">실패: "${escapeHtml(p.title || "")}" → ${escapeHtml(url)}</span>`;
+        row.innerHTML = `<span class="manage-row-label" style="color:var(--accent-rose); font-size:12px;">실패: "${escapeHtml(p.title || "")}" → ${escapeHtml(images[j])}</span>`;
         logEl.appendChild(row);
       }
-    }
+    });
+
+    const changed = results.some(r => r.ok);
+    const postFailed = results.some(r => !r.ok);
     const updates = {};
-    if (changed) { updates.imageUrls = newUrls; updates.imageThumbUrls = newThumbUrls; }
-    if (!postFailed) updates.imagesResized = true; // 실패한 이미지가 있으면 표시하지 않아서 다음 실행 때 다시 시도됨
+    if (changed) {
+      updates.imageUrls = results.map(r => r.url);
+      updates.imageThumbUrls = results.map(r => r.thumbUrl);
+    }
+    if (!postFailed) updates.imagesResized = true; // 실패한 이미지가 있으면 표시 안 해서 다음 실행 때 다시 시도됨
     if (Object.keys(updates).length) {
       await updateDoc(docSnap.ref, updates);
       if (changed) postsChanged++;
     }
+
+    done++;
+    statusEl.textContent = `처리 중... (${done}/${total})`;
   }
+
+  // 게시글 3개씩 동시에 처리 (전부 한꺼번에 하면 브라우저/ImgBB에 부담이 커서 개수 제한)
+  await mapWithConcurrency(toProcess, 3, processOnePost);
 
   btn.disabled = false;
   invalidateBoardCache(); // 여러 게시판의 이미지가 한꺼번에 바뀌었으니 전체 캐시를 비움
