@@ -638,7 +638,7 @@ body{
 /* 기본(좁은/보통 화면): 오른쪽 아래에 동그란 버튼으로 떠 있다가 눌러야 펼쳐짐 */
 .music-widget{
   position:fixed; right:20px; bottom:20px; z-index:60;
-  display:flex; flex-direction:column; align-items:flex-end; gap:12px;
+  display:flex; flex-direction:column-reverse; align-items:flex-end; gap:12px;
 }
 .music-toggle-btn{
   width:52px; height:52px; border-radius:50%;
@@ -729,15 +729,8 @@ input[type="range"].music-volume::-moz-range-thumb{
 .music-track-artist{ font-size:10.5px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* 넓은 화면: 본문 오른쪽 여백에 항상 펼쳐진 채로 고정 (버튼 없이 바로 보임) */
-@media (min-width:1700px){
-  .music-widget{
-    right:calc(50% - 580px - 24px); bottom:auto; top:100px;
-    align-items:flex-end;
-  }
-  .music-toggle-btn{ display:none; }
-  .music-panel.hidden{ display:flex !important; }
-  .music-panel{ max-height:calc(100vh - 140px); }
-}
+/* 넓은 화면이든 좁은 화면이든 항상 오른쪽 아래 버튼으로 접혀있다가, 누르면 그 자리에서 펼쳐져요.
+   (본문 위에 떠 있는 팝업 형태라 화면 크기와 상관없이 다른 내용과 안 겹쳐요) */
 
 /* 아주 좁은 화면(모바일): 패널이 화면 하단에 넓게 펼쳐지도록 */
 @media (max-width:480px){
