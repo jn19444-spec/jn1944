@@ -72,6 +72,8 @@ let editingMusicId = null; // null이면 새 곡 추가, 값이 있으면 그 �
 let pendingMusicUpload = null; // { url, title(파일명에서 추출) } - 업로드는 됐지만 아직 저장 전인 파일
 let currentTrackIndex = -1; // 현재 재생 중(혹은 마지막 재생)인 트랙의 musicTracks 내 인덱스
 let isMusicPlaying = false;
+let repeatMode = "off"; // "off" | "all" | "one"
+let shuffleMode = false;
 let didInitialRoute = false; // 첫 로딩 때 한 번만 주소창(경로)을 보고 화면을 복원함
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
@@ -2047,14 +2049,72 @@ function stopMusic() {
   renderMusicPlaylist();
 }
 
+// 다음에 재생할 곡의 인덱스를 정해요. 랜덤재생이 켜져 있으면 무작위로,
+// 아니면 순서대로 다음 곡을 골라요.
+function pickNextIndex() {
+  if (!musicTracks.length) return -1;
+  if (shuffleMode && musicTracks.length > 1) {
+    let next;
+    do { next = Math.floor(Math.random() * musicTracks.length); } while (next === currentTrackIndex);
+    return next;
+  }
+  return (currentTrackIndex + 1) % musicTracks.length;
+}
+
 function playNextTrack() {
   if (!musicTracks.length) return;
-  playMusicAt((currentTrackIndex + 1) % musicTracks.length);
+  const next = pickNextIndex();
+  if (next === -1) return;
+  playMusicAt(next);
 }
 function playPrevTrack() {
   if (!musicTracks.length) return;
+  if (shuffleMode && musicTracks.length > 1) {
+    let prev;
+    do { prev = Math.floor(Math.random() * musicTracks.length); } while (prev === currentTrackIndex);
+    playMusicAt(prev);
+    return;
+  }
   playMusicAt((currentTrackIndex - 1 + musicTracks.length) % musicTracks.length);
 }
+
+// 곡이 끝났을 때: 한 곡 반복이면 같은 곡을 다시, 전체 반복/랜덤이면 다음 곡,
+// 그냥 듣기(반복 없음)면 마지막 곡에서 멈춰요.
+function handleTrackEnded() {
+  if (repeatMode === "one") {
+    const audio = el("musicAudio");
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+    return;
+  }
+  const isLast = currentTrackIndex === musicTracks.length - 1;
+  if (repeatMode === "off" && !shuffleMode && isLast) {
+    stopMusic();
+    return;
+  }
+  playNextTrack();
+}
+
+// ---- 반복재생 / 랜덤재생 모드 ----
+function cycleRepeatMode() {
+  repeatMode = repeatMode === "off" ? "all" : repeatMode === "all" ? "one" : "off";
+  updatePlaybackModeUI();
+}
+function toggleShuffleMode() {
+  shuffleMode = !shuffleMode;
+  updatePlaybackModeUI();
+}
+function updatePlaybackModeUI() {
+  const repeatBtn = el("musicRepeatBtn");
+  repeatBtn.classList.toggle("active", repeatMode !== "off");
+  repeatBtn.textContent = repeatMode === "one" ? "🔂" : "🔁";
+  repeatBtn.title = repeatMode === "off" ? "반복 안 함 (그냥 듣기)" : repeatMode === "all" ? "전체 반복" : "한 곡 반복";
+  const shuffleBtn = el("musicShuffleBtn");
+  shuffleBtn.classList.toggle("active", shuffleMode);
+  shuffleBtn.title = shuffleMode ? "랜덤재생 끄기" : "랜덤재생 켜기";
+}
+el("musicRepeatBtn").addEventListener("click", cycleRepeatMode);
+el("musicShuffleBtn").addEventListener("click", toggleShuffleMode);
 
 el("musicToggleBtn").addEventListener("click", () => {
   el("musicPanel").classList.toggle("hidden");
@@ -2088,7 +2148,7 @@ el("musicAudio").addEventListener("pause", () => {
   el("musicToggleIcon").classList.remove("playing");
   renderMusicPlaylist();
 });
-el("musicAudio").addEventListener("ended", playNextTrack);
+el("musicAudio").addEventListener("ended", handleTrackEnded);
 el("musicAudio").addEventListener("timeupdate", () => {
   const audio = el("musicAudio");
   el("musicCurTime").textContent = formatMusicTime(audio.currentTime);
