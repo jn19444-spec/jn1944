@@ -2,6 +2,19 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script>
+  // 404.html에서 저장해둔 원래 주소가 있으면, 화면이 그려지기 전에 조용히 복원해요.
+  // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
+  (function () {
+    var redirect = sessionStorage.getItem("gr-redirect-path");
+    if (redirect) {
+      sessionStorage.removeItem("gr-redirect-path");
+      var segments = location.pathname.split("/").filter(Boolean);
+      var base = segments.length ? "/" + segments[0] : "";
+      history.replaceState(null, "", base + redirect);
+    }
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>+구구+ 팬 홈페이지</title>
 <link rel="manifest" href="manifest.json">
