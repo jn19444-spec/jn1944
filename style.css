@@ -729,13 +729,13 @@ input[type="range"].music-volume::-moz-range-thumb{
 .music-track-artist{ font-size:10.5px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* 넓은 화면: 본문 오른쪽 여백에 항상 펼쳐진 채로 고정 (버튼 없이 바로 보임) */
-@media (min-width:1500px){
+@media (min-width:1700px){
   .music-widget{
-    right:calc(50% - 580px - 20px); bottom:auto; top:100px;
+    right:calc(50% - 580px - 24px); bottom:auto; top:100px;
     align-items:flex-end;
   }
   .music-toggle-btn{ display:none; }
-  .music-panel.hidden{ display:flex; }
+  .music-panel.hidden{ display:flex !important; }
   .music-panel{ max-height:calc(100vh - 140px); }
 }
 
