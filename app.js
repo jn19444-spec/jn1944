@@ -20,8 +20,8 @@ const IMGBB_API_KEY = "9e855746835f598edb43a283d0219413";
 // 1) cloudinary.com 가입 → 대시보드에서 "Cloud name" 확인
 // 2) Settings → Upload → Upload presets → "Add upload preset" → Signing Mode를 Unsigned로 설정 → 이름 확인
 // 아래 두 값을 본인 계정 값으로 바꿔주세요.
-const CLOUDINARY_CLOUD_NAME = "여기에_cloud_name_입력";
-const CLOUDINARY_UPLOAD_PRESET = "여기에_unsigned_preset_이름_입력";
+const CLOUDINARY_CLOUD_NAME = "uzmdyc7a";
+const CLOUDINARY_UPLOAD_PRESET = "dudwls";
 
 // 게시판 구조는 이제 코드가 아니라 Firestore("boards" 컬렉션)에 저장됩니다.
 // 사이드바 아래 "게시판 관리" 버튼(관리자 로그인 후 보임)으로 추가/삭제하세요.
