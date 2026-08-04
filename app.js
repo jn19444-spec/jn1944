@@ -16,6 +16,13 @@ const db = getFirestore(app);
 // ImgBB 이미지 업로드용 API 키 (https://api.imgbb.com/ 에서 무료 발급)
 const IMGBB_API_KEY = "9e855746835f598edb43a283d0219413";
 
+// 음악 파일 업로드용 Cloudinary 설정 (https://cloudinary.com 무료 가입 후 발급)
+// 1) cloudinary.com 가입 → 대시보드에서 "Cloud name" 확인
+// 2) Settings → Upload → Upload presets → "Add upload preset" → Signing Mode를 Unsigned로 설정 → 이름 확인
+// 아래 두 값을 본인 계정 값으로 바꿔주세요.
+const CLOUDINARY_CLOUD_NAME = "여기에_cloud_name_입력";
+const CLOUDINARY_UPLOAD_PRESET = "여기에_unsigned_preset_이름_입력";
+
 // 게시판 구조는 이제 코드가 아니라 Firestore("boards" 컬렉션)에 저장됩니다.
 // 사이드바 아래 "게시판 관리" 버튼(관리자 로그인 후 보임)으로 추가/삭제하세요.
 const DEFAULT_SEED = [
@@ -58,6 +65,13 @@ let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
 let editingPostId = null; // null이면 새 글쓰기, 값이 있으면 그 글을 수정하는 중
 let editingPostBoardId = null; // 수정 중인 글이 원래 속한 게시판(캐시 무효화용)
+
+// ---------- 음악 플레이어 상태 ----------
+let musicTracks = []; // Firestore "musicTracks" 컬렉션 (모두에게 공개, 관리자만 추가/삭제)
+let editingMusicId = null; // null이면 새 곡 추가, 값이 있으면 그 곡을 수정하는 중
+let pendingMusicUpload = null; // { url, title(파일명에서 추출) } - 업로드는 됐지만 아직 저장 전인 파일
+let currentTrackIndex = -1; // 현재 재생 중(혹은 마지막 재생)인 트랙의 musicTracks 내 인덱스
+let isMusicPlaying = false;
 let didInitialRoute = false; // 첫 로딩 때 한 번만 주소창(경로)을 보고 화면을 복원함
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
@@ -261,6 +275,7 @@ onAuthStateChanged(auth, async (user) => {
   el("adminMenuBtn").classList.toggle("hidden", !isAdmin);
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
+  el("musicWidget").classList.toggle("hidden", musicTracks.length === 0 && !isAdmin);
 
   await loadBoardConfig();
   if (!didInitialRoute) {
@@ -377,6 +392,7 @@ const ADMIN_TAB_LOADERS = {
   posts: loadPostAdminList,
   boards: renderManageList,
   topmenu: loadTopMenuAdminTab,
+  music: loadMusicAdminTab,
   stats: loadStats,
   site: fillSiteSettingsForm,
 };
@@ -1796,6 +1812,295 @@ el("topMenuSaveBtn").addEventListener("click", async () => {
   }
 });
 
+// ---------- 음악 플레이어 ----------
+// 곡 목록은 모든 방문자에게 공개, 추가/수정/삭제는 관리자만(firestore.rules 참고)
+
+function nextMusicOrder() {
+  if (!musicTracks.length) return Date.now();
+  return Math.max(...musicTracks.map(r => r.order || 0)) + 10;
+}
+
+// 오디오 파일을 Cloudinary에 업로드해요(관리자 전용). 이미지의 uploadToImgBB와 같은 역할.
+async function uploadAudioToCloudinary(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  // Cloudinary는 오디오/영상을 "video" 리소스 타입으로 다뤄요.
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await res.json();
+  if (!data.secure_url) throw new Error(data.error?.message || "업로드 실패");
+  return data.secure_url;
+}
+
+async function loadMusicTracks() {
+  try {
+    const q = query(collection(db, "musicTracks"), orderBy("order", "asc"));
+    const snap = await getDocs(q);
+    musicTracks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    musicTracks = []; // 컬렉션이 아직 없거나 읽기 실패 시 그냥 안 보여줌
+  }
+}
+
+// 페이지 로드 시 호출 - 플레이어 위젯 자체를 보여줄지, 목록을 채울지 담당
+async function initMusicPlayer() {
+  await loadMusicTracks();
+  el("musicWidget").classList.toggle("hidden", musicTracks.length === 0 && !isAdmin);
+  renderMusicPlaylist();
+}
+
+async function loadMusicAdminTab() {
+  await loadMusicTracks();
+  renderMusicAdminList();
+  el("musicWidget").classList.remove("hidden");
+  renderMusicPlaylist();
+}
+
+// ---- 관리자: 곡 추가/수정/삭제 ----
+function renderMusicAdminList() {
+  const listEl = el("musicAdminList");
+  listEl.innerHTML = "";
+  musicTracks.forEach((track, idx) => {
+    const row = document.createElement("div");
+    row.className = "manage-row";
+    const label = `🎵 ${escapeHtml(track.title)}` + (track.artist ? ` <span style="color:var(--text-dim);">- ${escapeHtml(track.artist)}</span>` : "");
+    row.innerHTML = `
+      <span class="manage-row-label">${label}</span>
+      <span class="manage-row-actions">
+        <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
+        <button data-act="down" ${idx === musicTracks.length - 1 ? "disabled" : ""}>▼</button>
+        <button data-act="edit">수정</button>
+        <button data-act="del" class="danger">삭제</button>
+      </span>
+    `;
+    row.querySelector('[data-act="up"]').addEventListener("click", () => moveMusicTrack(idx, -1));
+    row.querySelector('[data-act="down"]').addEventListener("click", () => moveMusicTrack(idx, 1));
+    row.querySelector('[data-act="edit"]').addEventListener("click", () => startEditMusic(track));
+    row.querySelector('[data-act="del"]').addEventListener("click", () => deleteMusicTrack(track));
+    listEl.appendChild(row);
+  });
+}
+
+async function moveMusicTrack(idx, dir) {
+  const otherIdx = idx + dir;
+  if (otherIdx < 0 || otherIdx >= musicTracks.length) return;
+  const a = musicTracks[idx], b = musicTracks[otherIdx];
+  await Promise.all([
+    updateDoc(doc(db, "musicTracks", a.id), { order: b.order }),
+    updateDoc(doc(db, "musicTracks", b.id), { order: a.order }),
+  ]);
+  await loadMusicTracks();
+  renderMusicAdminList();
+  renderMusicPlaylist();
+}
+
+async function deleteMusicTrack(track) {
+  if (!confirm(`"${track.title}" 곡을 삭제할까요?`)) return;
+  const deletedIdx = musicTracks.findIndex(t => t.id === track.id);
+  if (deletedIdx === currentTrackIndex) stopMusic();
+  await deleteDoc(doc(db, "musicTracks", track.id));
+  if (editingMusicId === track.id) cancelEditMusic();
+  await loadMusicTracks();
+  renderMusicAdminList();
+  renderMusicPlaylist();
+}
+
+function startEditMusic(track) {
+  editingMusicId = track.id;
+  pendingMusicUpload = null;
+  el("musicTitleInput").value = track.title || "";
+  el("musicArtistInput").value = track.artist || "";
+  el("musicFileName").textContent = "(파일은 그대로 두려면 새로 선택하지 않아도 돼요)";
+  el("musicSaveBtn").textContent = "💾 수정 저장";
+  el("musicCancelEditBtn").classList.remove("hidden");
+  el("musicTitleInput").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function cancelEditMusic() {
+  editingMusicId = null;
+  pendingMusicUpload = null;
+  el("musicTitleInput").value = "";
+  el("musicArtistInput").value = "";
+  el("musicFileName").textContent = "";
+  el("musicFileInput").value = "";
+  el("musicSaveBtn").textContent = "➕ 곡 추가";
+  el("musicCancelEditBtn").classList.add("hidden");
+}
+el("musicCancelEditBtn").addEventListener("click", cancelEditMusic);
+
+el("musicFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const statusEl = el("musicUploadStatus");
+  statusEl.classList.remove("hidden", "error");
+  statusEl.textContent = "음악 파일 업로드 중...";
+  el("musicFileName").textContent = "";
+  try {
+    const url = await uploadAudioToCloudinary(file);
+    pendingMusicUpload = { url };
+    statusEl.classList.add("hidden");
+    el("musicFileName").textContent = `✅ 업로드 완료: ${file.name}`;
+    // 제목을 아직 안 적었으면 파일명에서 확장자를 빼서 기본값으로 채워줘요.
+    if (!el("musicTitleInput").value.trim()) {
+      el("musicTitleInput").value = file.name.replace(/\.[^.]+$/, "");
+    }
+  } catch (err) {
+    statusEl.classList.add("error");
+    statusEl.textContent = "업로드 실패: " + err.message + " (Cloudinary 설정을 확인해주세요)";
+  }
+});
+
+el("musicSaveBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
+  const title = el("musicTitleInput").value.trim();
+  if (!title) { alert("곡 제목을 입력해주세요."); return; }
+  const artist = el("musicArtistInput").value.trim();
+  if (!editingMusicId && !pendingMusicUpload) { alert("음악 파일을 선택해주세요."); return; }
+  const btn = el("musicSaveBtn");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    if (editingMusicId) {
+      const patch = { title, artist };
+      if (pendingMusicUpload) patch.url = pendingMusicUpload.url;
+      await updateDoc(doc(db, "musicTracks", editingMusicId), patch);
+    } else {
+      await addDoc(collection(db, "musicTracks"), {
+        title, artist, url: pendingMusicUpload.url, order: nextMusicOrder(), createdAt: serverTimestamp(),
+      });
+    }
+    cancelEditMusic();
+    await loadMusicTracks();
+    renderMusicAdminList();
+    renderMusicPlaylist();
+  } catch (err) {
+    alert("저장 실패: " + (err.code || err.message));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---- 방문자용 플레이어 UI ----
+function renderMusicPlaylist() {
+  const listEl = el("musicPlaylist");
+  const emptyEl = el("musicPlaylistEmpty");
+  if (!musicTracks.length) {
+    listEl.innerHTML = "";
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+  emptyEl.classList.add("hidden");
+  listEl.innerHTML = musicTracks.map((track, idx) => `
+    <div class="music-track ${idx === currentTrackIndex ? "active" : ""}" data-idx="${idx}">
+      <span class="music-track-icon">${idx === currentTrackIndex && isMusicPlaying ? "🔊" : (idx + 1)}</span>
+      <div class="music-track-info">
+        <div class="music-track-title">${escapeHtml(track.title)}</div>
+        ${track.artist ? `<div class="music-track-artist">${escapeHtml(track.artist)}</div>` : ""}
+      </div>
+    </div>
+  `).join("");
+  listEl.querySelectorAll(".music-track").forEach(rowEl => {
+    rowEl.addEventListener("click", () => playMusicAt(Number(rowEl.dataset.idx)));
+  });
+}
+
+function formatMusicTime(sec) {
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function playMusicAt(idx) {
+  if (idx < 0 || idx >= musicTracks.length) return;
+  const audio = el("musicAudio");
+  currentTrackIndex = idx;
+  const track = musicTracks[idx];
+  audio.src = track.url;
+  audio.play().catch(() => {}); // 자동재생이 막힌 브라우저는 그냥 무시(사용자가 다시 누르면 재생됨)
+  el("musicNowTitle").textContent = track.title;
+  el("musicNowArtist").textContent = track.artist || "";
+  renderMusicPlaylist();
+}
+
+function togglePlayPause() {
+  const audio = el("musicAudio");
+  if (currentTrackIndex === -1) {
+    if (musicTracks.length) playMusicAt(0);
+    return;
+  }
+  if (audio.paused) audio.play().catch(() => {});
+  else audio.pause();
+}
+
+function stopMusic() {
+  const audio = el("musicAudio");
+  audio.pause();
+  audio.removeAttribute("src");
+  currentTrackIndex = -1;
+  isMusicPlaying = false;
+  el("musicNowTitle").textContent = "재생 중인 곡이 없어요";
+  el("musicNowArtist").textContent = "";
+  renderMusicPlaylist();
+}
+
+function playNextTrack() {
+  if (!musicTracks.length) return;
+  playMusicAt((currentTrackIndex + 1) % musicTracks.length);
+}
+function playPrevTrack() {
+  if (!musicTracks.length) return;
+  playMusicAt((currentTrackIndex - 1 + musicTracks.length) % musicTracks.length);
+}
+
+el("musicToggleBtn").addEventListener("click", () => {
+  el("musicPanel").classList.toggle("hidden");
+});
+el("musicPanelCloseBtn").addEventListener("click", () => {
+  el("musicPanel").classList.add("hidden");
+});
+el("musicPlayBtn").addEventListener("click", togglePlayPause);
+el("musicPrevBtn").addEventListener("click", playPrevTrack);
+el("musicNextBtn").addEventListener("click", playNextTrack);
+
+el("musicSeekBar").addEventListener("input", (e) => {
+  const audio = el("musicAudio");
+  if (!audio.duration) return;
+  audio.currentTime = (Number(e.target.value) / 100) * audio.duration;
+});
+el("musicVolumeBar").addEventListener("input", (e) => {
+  el("musicAudio").volume = Number(e.target.value);
+});
+el("musicAudio").volume = 0.7;
+
+el("musicAudio").addEventListener("play", () => {
+  isMusicPlaying = true;
+  el("musicPlayBtn").textContent = "⏸";
+  el("musicToggleIcon").classList.add("playing");
+  renderMusicPlaylist();
+});
+el("musicAudio").addEventListener("pause", () => {
+  isMusicPlaying = false;
+  el("musicPlayBtn").textContent = "▶";
+  el("musicToggleIcon").classList.remove("playing");
+  renderMusicPlaylist();
+});
+el("musicAudio").addEventListener("ended", playNextTrack);
+el("musicAudio").addEventListener("timeupdate", () => {
+  const audio = el("musicAudio");
+  el("musicCurTime").textContent = formatMusicTime(audio.currentTime);
+  if (audio.duration) {
+    el("musicSeekBar").value = (audio.currentTime / audio.duration) * 100;
+    el("musicDurTime").textContent = formatMusicTime(audio.duration);
+  }
+});
+el("musicAudio").addEventListener("loadedmetadata", () => {
+  el("musicDurTime").textContent = formatMusicTime(el("musicAudio").duration);
+});
+
 // ---------- 게시글 일괄 관리 ----------
 let adminAllPostEntries = []; // [{docSnap, boardName}, ...] - 전체 게시글 (게시판 필터/검색은 이 배열에서 클라이언트가 처리)
 let adminSelectedPostIds = new Set();
@@ -2166,6 +2471,7 @@ renderBoardTree();
 showHomeDashboard();
 loadSiteConfig();
 loadTopMenu();
+initMusicPlayer();
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {

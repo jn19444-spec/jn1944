@@ -74,5 +74,11 @@ service cloud.firestore {
       allow read: if canReadPost(resource.data);
       allow create, update, delete: if isAdmin();
     }
+
+    // ---------- 음악 플레이어 곡 목록 ----------
+    match /musicTracks/{trackId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
