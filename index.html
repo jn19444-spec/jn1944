@@ -2,19 +2,6 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<script>
-  // 404.html에서 저장해둔 원래 주소가 있으면, 화면이 그려지기 전에 조용히 복원해요.
-  // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
-  (function () {
-    var redirect = sessionStorage.getItem("gr-redirect-path");
-    if (redirect) {
-      sessionStorage.removeItem("gr-redirect-path");
-      var segments = location.pathname.split("/").filter(Boolean);
-      var base = segments.length ? "/" + segments[0] : "";
-      history.replaceState(null, "", base + redirect);
-    }
-  })();
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>+구구+ 팬 홈페이지</title>
 <link rel="manifest" href="manifest.json">
@@ -386,5 +373,22 @@
 
 <script type="module" src="firebase-config.js"></script>
 <script type="module" src="app.js"></script>
+<script>
+  // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
+  // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
+  // 주의: 이 스크립트는 반드시 위의 style.css/app.js 등 상대경로 파일들이 전부 선언된
+  // "다음"에 실행돼야 해요. 먼저 실행해서 주소(location)를 바꿔버리면, 그 뒤로 이어지는
+  // 상대경로 리소스들이 엉뚱한 위치(예: /board/style.css)를 가리키게 되어 CSS/JS가
+  // 통째로 안 불러와지는 문제가 생겨요.
+  (function () {
+    var redirect = sessionStorage.getItem("gr-redirect-path");
+    if (redirect) {
+      sessionStorage.removeItem("gr-redirect-path");
+      var segments = location.pathname.split("/").filter(Boolean);
+      var base = segments.length ? "/" + segments[0] : "";
+      history.replaceState(null, "", base + redirect);
+    }
+  })();
+</script>
 </body>
 </html>
