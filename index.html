@@ -115,6 +115,15 @@
       <article id="postDetail" class="post-detail"></article>
     </section>
 
+    <!-- 사진 갤러리 뷰 (게시글에 올라온 사진만 모아서 보기) -->
+    <section id="galleryView" class="hidden">
+      <div class="content-header">
+        <h2>📷 사진 갤러리</h2>
+      </div>
+      <div id="galleryGrid" class="gallery-grid"></div>
+      <div id="galleryEmpty" class="empty-state hidden"><p>아직 사진이 없어요.</p></div>
+    </section>
+
     <!-- 관리자 메뉴 (게시글 목록처럼 큰 화면으로 표시) -->
     <section id="adminView" class="hidden">
       <button id="adminBackBtn" class="btn btn-ghost back-btn">← 목록으로</button>
@@ -340,6 +349,7 @@
   <span id="lightboxSpinner" class="img-spinner hidden"></span>
   <img id="lightboxImg" src="" alt="">
   <button id="lightboxNext" class="lightbox-nav lightbox-next hidden" title="다음">›</button>
+  <button id="lightboxCaption" class="lightbox-caption hidden" title="원본 글로 이동"></button>
 </div>
 
 <!-- 음악 플레이어 (사이트 오른쪽에 떠 있어요) -->

@@ -633,6 +633,28 @@ body{
 .lightbox-nav:hover{ background:rgba(255,255,255,.22); }
 .lightbox-prev{ left:18px; }
 .lightbox-next{ right:18px; }
+.lightbox-caption{
+  position:absolute; left:50%; bottom:24px; transform:translateX(-50%);
+  max-width:80vw; background:rgba(0,0,0,.6); color:#fff; border:none;
+  border-radius:999px; padding:8px 18px; font-size:13px; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-family:var(--font-body);
+}
+.lightbox-caption:hover{ background:rgba(47,214,196,.85); color:#04211e; }
+
+/* ---------- 사진 갤러리 ---------- */
+.gallery-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+  gap:10px;
+}
+.gallery-tile{
+  aspect-ratio:1/1; border-radius:10px; overflow:hidden; cursor:pointer;
+  background:var(--bg-panel-2); border:1px solid var(--line);
+  transition:border-color .15s ease;
+}
+.gallery-tile:hover{ border-color:var(--accent-teal); }
+.gallery-tile .img-wrap{ width:100%; height:100%; }
+.gallery-tile-img{ width:100%; height:100%; object-fit:cover; display:block; }
 
 /* ---------- 음악 플레이어 (오른쪽 위젯) ---------- */
 /* 기본(좁은/보통 화면): 오른쪽 아래에 동그란 버튼으로 떠 있다가 눌러야 펼쳐짐 */

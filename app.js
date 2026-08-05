@@ -209,6 +209,11 @@ async function routeFromLocation() {
     return;
   }
 
+  if (path === "/gallery") {
+    selectGallery({ skipUrl: true });
+    return;
+  }
+
   const postMatch = path.match(/^\/board\/([^/]+)$/);
   if (postMatch) {
     const found = await openPost(postMatch[1], { skipUrl: true });
@@ -795,6 +800,12 @@ function renderBoardTree() {
   allItem.addEventListener("click", selectAllBoards);
   treeEl.appendChild(allItem);
 
+  const galleryItem = document.createElement("div");
+  galleryItem.className = "board-item all-board-item" + (currentBoardId === "__gallery__" ? " active" : "");
+  galleryItem.innerHTML = "📷 사진 갤러리";
+  galleryItem.addEventListener("click", () => selectGallery());
+  treeEl.appendChild(galleryItem);
+
   boardRows.forEach(row => {
     if (row.type === "divider") {
       const hr = document.createElement("div");
@@ -844,17 +855,30 @@ function selectAllBoards(opts = {}) {
   if (!opts.skipUrl) pushUrl("/board");
 }
 
+function selectGallery(opts = {}) {
+  currentBoardId = "__gallery__";
+  currentBoard = null;
+  el("writeBtn").classList.add("hidden");
+  showGalleryView();
+  hideHomeDashboard();
+  renderBoardTree();
+  loadGalleryImages();
+  if (!opts.skipUrl) pushUrl("/gallery");
+}
+
 // ---------- 뷰 전환 ----------
 function showListView() {
   el("listView").classList.remove("hidden");
   el("writeView").classList.add("hidden");
   el("detailView").classList.add("hidden");
+  el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
 }
 function showWriteView() {
   el("listView").classList.add("hidden");
   el("writeView").classList.remove("hidden");
   el("detailView").classList.add("hidden");
+  el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
   el("writeBoardLabel").textContent = currentBoard ? currentBoard.name : "";
   el("writeViewTitle").textContent = editingPostId ? "글 수정" : "글쓰기";
@@ -863,12 +887,21 @@ function showDetailView() {
   el("listView").classList.add("hidden");
   el("writeView").classList.add("hidden");
   el("detailView").classList.remove("hidden");
+  el("galleryView").classList.add("hidden");
+  el("adminView").classList.add("hidden");
+}
+function showGalleryView() {
+  el("listView").classList.add("hidden");
+  el("writeView").classList.add("hidden");
+  el("detailView").classList.add("hidden");
+  el("galleryView").classList.remove("hidden");
   el("adminView").classList.add("hidden");
 }
 function showAdminView() {
   el("listView").classList.add("hidden");
   el("writeView").classList.add("hidden");
   el("detailView").classList.add("hidden");
+  el("galleryView").classList.add("hidden");
   el("adminView").classList.remove("hidden");
 }
 
@@ -1411,6 +1444,54 @@ async function loadAllPosts() {
   el("emptyState").classList.add("hidden");
   entries = sortForBoardList(entries, e => e.docSnap.data());
   showPostListPage(entries);
+}
+
+// ---------- 사진 갤러리 (모든 게시글의 사진만 모아서 그리드로 보기) ----------
+async function loadGalleryImages() {
+  const myToken = ++navToken;
+  const gridEl = el("galleryGrid");
+  gridEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  el("galleryEmpty").classList.add("hidden");
+
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
+  const perBoard = await Promise.all(boards.map(async (b) => {
+    try {
+      const docs = await fetchBoardPosts(b.id);
+      return docs.map(docSnap => ({ docSnap }));
+    } catch (err) {
+      return [];
+    }
+  }));
+  if (myToken !== navToken) return;
+  let entries = perBoard.flat();
+  entries = sortForBoardList(entries, e => e.docSnap.data());
+
+  const items = [];
+  entries.forEach(({ docSnap }) => {
+    const p = docSnap.data();
+    const images = getImages(p);
+    const thumbs = getThumbs(p);
+    images.forEach((url, i) => {
+      items.push({ url, thumb: thumbs[i] || url, title: p.title, postId: docSnap.id });
+    });
+  });
+
+  gridEl.innerHTML = "";
+  if (!items.length) {
+    el("galleryEmpty").classList.remove("hidden");
+    return;
+  }
+  el("galleryEmpty").classList.add("hidden");
+
+  const allUrls = items.map(it => it.url);
+  const captions = items.map(it => ({ title: it.title, postId: it.postId }));
+  items.forEach((item, i) => {
+    const tile = document.createElement("div");
+    tile.className = "gallery-tile";
+    tile.innerHTML = imgWrap(item.thumb, { wrapClass: "gallery-tile-wrap", imgClass: "gallery-tile-img", imgAttrs: `loading="lazy" decoding="async"` });
+    tile.addEventListener("click", () => openLightbox(allUrls, i, captions));
+    gridEl.appendChild(tile);
+  });
 }
 
 // ---------- 상세보기 ----------
@@ -2403,10 +2484,12 @@ async function loadStats() {
 // ---------- 이미지 확대보기(라이트박스) ----------
 let lightboxImages = [];
 let lightboxIndex = 0;
+let lightboxCaptions = null; // 갤러리에서 열었을 때만: [{title, postId}, ...] (일반 게시글 상세에서는 null)
 
-function openLightbox(images, idx) {
+function openLightbox(images, idx, captions = null) {
   lightboxImages = images;
   lightboxIndex = idx;
+  lightboxCaptions = captions;
   renderLightbox();
   el("lightbox").classList.remove("hidden");
 }
@@ -2417,7 +2500,22 @@ function renderLightbox() {
   const multi = lightboxImages.length > 1;
   el("lightboxPrev").classList.toggle("hidden", !multi);
   el("lightboxNext").classList.toggle("hidden", !multi);
+
+  const capEl = el("lightboxCaption");
+  const cap = lightboxCaptions && lightboxCaptions[lightboxIndex];
+  if (cap) {
+    capEl.textContent = "📄 " + cap.title;
+    capEl.classList.remove("hidden");
+  } else {
+    capEl.classList.add("hidden");
+  }
 }
+el("lightboxCaption").addEventListener("click", () => {
+  const cap = lightboxCaptions && lightboxCaptions[lightboxIndex];
+  if (!cap) return;
+  closeLightbox();
+  openPost(cap.postId);
+});
 el("lightboxImg").addEventListener("load", () => {
   el("lightboxSpinner").classList.add("hidden");
   el("lightboxImg").classList.remove("hidden");
