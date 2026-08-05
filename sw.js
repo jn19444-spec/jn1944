@@ -4,7 +4,7 @@
 // 사이트를 한창 자주 업데이트하는 중이라, CSS/JS도 "일단 저장된 것부터 보여주기"가 아니라
 // HTML처럼 "새 버전을 먼저 받아오고 실패했을 때만 저장된 것으로 대체"하도록 함.
 // (저장된 옛날 CSS가 최신 HTML 구조랑 안 맞아서 스타일이 깨지는 문제 방지)
-const CACHE_NAME = "gugu-shell-v8";
+const CACHE_NAME = "gugu-shell-v9";
 
 // 게시글 이미지(ImgBB 등)는 내용이 절대 안 바뀌는 파일이라 여기는 반대로
 // "한 번 받으면 그대로 재사용"하는 별도 캐시를 둬요. 강제 새로고침을 해도
@@ -102,7 +102,22 @@ self.addEventListener("fetch", (event) => {
         return res;
       })
       .catch(() =>
-        caches.match(req).then((cached) => cached || (req.mode === "navigate" ? caches.match("./index.html") : undefined))
+        caches.match(req).then((cached) => {
+          if (cached) return cached;
+          if (req.mode === "navigate") {
+            // 페이지 이동(주소창 진입/새로고침)인데 네트워크도 실패하고 캐시도 없으면
+            // 최소한 index.html이라도 보여주고, 그마저 없으면 에러 대신 안내 문구를 응답해요.
+            // (respondWith가 undefined를 받으면 스크립트 자체가 죽어버리기 때문에 반드시 뭔가를 반환해야 함)
+            return caches.match("./index.html").then(
+              (idx) => idx || new Response("오프라인 상태라 페이지를 불러올 수 없어요. 인터넷 연결을 확인해주세요.", {
+                status: 503,
+                headers: { "Content-Type": "text/plain; charset=utf-8" },
+              })
+            );
+          }
+          // 이미지가 아닌 일반 리소스(js/css 등)가 캐시에도 없으면, 여기서도 반드시 Response를 반환해야 함
+          return new Response("", { status: 504, statusText: "Offline" });
+        })
       )
   );
 });

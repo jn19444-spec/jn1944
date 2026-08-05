@@ -523,6 +523,54 @@ async function migrateAllImages() {
     (imagesFailed ? " (실패한 이미지는 아래 목록을 참고해서 직접 다운받아 수정하기 화면에서 다시 올려주세요)" : "");
 }
 
+// ---------- 이미지 미리 받아두기 (이 브라우저의 서비스워커 캐시를 미리 채움) ----------
+// 이 브라우저에서 fetch()로 한 번 요청만 해줘도, sw.js의 fetch 이벤트가 그걸 가로채서
+// 알아서 캐시(gugu-images)에 저장해줘요. 그래서 여기선 그냥 모든 이미지 URL에
+// 순서대로(동시 개수 제한해서) 요청만 날려주면 "미리 받기"가 완성돼요.
+// ⚠ 서비스워커 캐시는 브라우저마다 따로 저장되기 때문에, 이 버튼은 지금 누른
+// 이 브라우저에만 효과가 있고 다른 사람 화면에는 영향을 주지 않아요.
+el("prewarmImagesBtn").addEventListener("click", prewarmImageCache);
+
+async function prewarmImageCache() {
+  const statusEl = el("prewarmStatus");
+  const btn = el("prewarmImagesBtn");
+  btn.disabled = true;
+  statusEl.textContent = "게시글을 불러오는 중...";
+
+  const snap = await getDocs(collection(db, "posts"));
+  const urlSet = new Set();
+  snap.docs.forEach(docSnap => {
+    const p = docSnap.data();
+    getImages(p).forEach(u => u && urlSet.add(u));
+    getThumbs(p).forEach(u => u && urlSet.add(u));
+  });
+  const urls = Array.from(urlSet);
+
+  if (!urls.length) {
+    statusEl.textContent = "미리 받을 이미지가 없어요.";
+    btn.disabled = false;
+    return;
+  }
+
+  let done = 0, failed = 0;
+  statusEl.textContent = `받는 중... (0/${urls.length})`;
+
+  await mapWithConcurrency(urls, 6, async (url) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) failed++;
+    } catch (e) {
+      failed++;
+    }
+    done++;
+    statusEl.textContent = `받는 중... (${done}/${urls.length})`;
+  });
+
+  btn.disabled = false;
+  statusEl.textContent = `완료! 이 브라우저에 이미지 ${urls.length - failed}개를 저장해뒀어요.` +
+    (failed ? ` (${failed}개는 실패 — 원본 링크가 깨졌거나 지금 접속이 안 되는 이미지예요)` : "");
+}
+
 async function loadMemberList() {
   const listEl = el("memberList");
   listEl.innerHTML = "불러오는 중...";
