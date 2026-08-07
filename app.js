@@ -1310,7 +1310,7 @@ function renderPostCard(docSnap, opts) {
         <span>${formatDate(p.createdAt)}</span>
       </div>
       <div class="post-card-title">${escapeHtml(p.title)}</div>
-      <div class="post-card-preview">${escapeHtml(p.content)}</div>
+      <div class="post-card-preview">${escapeHtml(stripImageMarkers(p.content))}</div>
       <div class="post-card-stats"><span>👁 ${p.views || 0}</span></div>
     </div>
     ${images.length ? `<div class="post-card-thumb-wrap">
@@ -1512,8 +1512,7 @@ async function openPost(postId, opts = {}) {
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
-    ${images.map((u, i) => imgWrap(u, { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async"` })).join("")}
-    <div class="content-text">${escapeHtml(p.content)}</div>
+    <div class="content-text">${renderContentWithImages(p, images)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="pinPostBtn" class="btn btn-ghost">${p.isPinned ? "📌 고정 해제" : "📌 고정하기"}</button>
       <button id="editPostBtn" class="btn btn-ghost">수정하기</button>
@@ -2651,6 +2650,40 @@ function getImages(p) {
   if (Array.isArray(p.imageUrls) && p.imageUrls.length) return p.imageUrls;
   if (p.imageUrl) return [p.imageUrl];
   return [];
+}
+
+// 본문 안에 [사진1] 같은 표시가 있으면(채록소 확장프로그램이 자동으로 넣어줌) 그 자리에
+// 실제 사진을 끼워 넣어요. 표시가 없거나 번호가 사진 개수를 벗어나면(예: 사진을 나중에 지움)
+// 그 사진들은 맨 아래에 몰아서 붙여요.
+function renderContentWithImages(p, images) {
+  const parts = String(p.content || "").split(/(\[사진\d+\])/g);
+  const usedIdx = new Set();
+  let html = "";
+  parts.forEach(part => {
+    const m = part.match(/^\[사진(\d+)\]$/);
+    if (m) {
+      const idx = Number(m[1]) - 1;
+      if (idx >= 0 && idx < images.length && !usedIdx.has(idx)) {
+        usedIdx.add(idx);
+        html += imgWrap(images[idx], { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${idx}" loading="lazy" decoding="async"` });
+        return;
+      }
+      // 번호가 유효하지 않으면(사진이 지워졌거나 등) 표시를 그냥 글자로 보여줘요.
+    }
+    html += escapeHtml(part);
+  });
+
+  images.forEach((u, i) => {
+    if (usedIdx.has(i)) return;
+    html += imgWrap(u, { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${i}" loading="lazy" decoding="async"` });
+  });
+
+  return html;
+}
+
+// 목록 미리보기용: [사진N] 표시는 글자로 보여줄 필요 없으니 지워요.
+function stripImageMarkers(text) {
+  return String(text || "").replace(/\[사진\d+\]/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
 // 목록/미리보기용 작은 썸네일 목록. imageThumbUrls가 없거나 개수가 안 맞는 옛날 글은
