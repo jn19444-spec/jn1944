@@ -77,6 +77,7 @@ let shuffleMode = false;
 let didInitialRoute = false; // 첫 로딩 때 한 번만 주소창(경로)을 보고 화면을 복원함
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
+let selectedImageDeleteUrls = []; // 위 이미지들과 같은 순서의 ImgBB 삭제용 링크(있으면). 게시글 삭제할 때 같이 정리하는 데 씀.
 
 let topMenuItems = []; // Firestore "topMenus" 컬렉션 (order 오름차순)
 let topMenuImageUrls = []; // 상단메뉴 편집 폼에서 업로드된(또는 기존) 이미지 URL 목록
@@ -477,16 +478,17 @@ async function migrateAllImages() {
     const oldThumbs = getThumbs(p);
 
     // 한 게시글 안의 사진들은 동시에 가져와서 올림 (순서는 그대로 유지됨)
+    const oldDeleteUrls = Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls : [];
     const results = await Promise.all(images.map(async (url, j) => {
       try {
         const resp = await fetch(url, { mode: "cors" });
         if (!resp.ok) throw new Error("이미지를 가져오지 못함");
         const blob = await resp.blob();
         const file = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-        const { url: newUrl, thumbUrl } = await uploadToImgBB(file); // 리사이즈 후 재업로드
-        return { ok: true, url: newUrl, thumbUrl };
+        const { url: newUrl, thumbUrl, deleteUrl } = await uploadToImgBB(file); // 리사이즈 후 재업로드
+        return { ok: true, url: newUrl, thumbUrl, deleteUrl };
       } catch (err) {
-        return { ok: false, url, thumbUrl: oldThumbs[j] || url };
+        return { ok: false, url, thumbUrl: oldThumbs[j] || url, deleteUrl: oldDeleteUrls[j] || null };
       }
     }));
 
@@ -508,6 +510,7 @@ async function migrateAllImages() {
     if (changed) {
       updates.imageUrls = results.map(r => r.url);
       updates.imageThumbUrls = results.map(r => r.thumbUrl);
+      updates.imageDeleteUrls = results.map(r => r.deleteUrl || null);
     }
     if (!postFailed) updates.imagesResized = true; // 실패한 이미지가 있으면 표시 안 해서 다음 실행 때 다시 시도됨
     if (Object.keys(updates).length) {
@@ -1043,7 +1046,7 @@ function renderNoticeDropdown(entries) {
         e.stopPropagation();
         const p = itemEl.querySelector(".notice-item-title").textContent.replace("📌 ", "");
         if (!confirm(`"${p}" 글을 삭제할까요? 되돌릴 수 없어요.`)) return;
-        await deleteDoc(doc(db, "posts", id));
+        await deletePostAndImages(id);
         invalidateBoardCache();
         loadNoticeDropdown();
         if (currentBoardId === "__all__") loadAllPosts();
@@ -1173,7 +1176,8 @@ async function resizeImageFile(file, maxDim = 1600, quality = 0.85) {
 
 // ImgBB는 업로드하면 원본 외에 작은 썸네일(약 160px)도 같이 만들어줘요.
 // 목록 화면처럼 작게 보여줄 땐 이 썸네일을 쓰면 훨씬 가볍고 빨라요.
-// 반환값: { url: 원본(리사이즈된) 이미지, thumbUrl: 목록용 작은 썸네일 }
+// delete_url은 나중에 게시글을 지울 때 ImgBB에서도 같이 지우는 용도로 저장해둬요.
+// 반환값: { url: 원본(리사이즈된) 이미지, thumbUrl: 목록용 작은 썸네일, deleteUrl: 삭제용 링크 }
 async function uploadToImgBB(file) {
   const resized = await resizeImageFile(file);
   const formData = new FormData();
@@ -1186,7 +1190,8 @@ async function uploadToImgBB(file) {
   if (!data.success) throw new Error(data.error?.message || "업로드 실패");
   const url = data.data.url;
   const thumbUrl = data.data.thumb?.url || data.data.medium?.url || url;
-  return { url, thumbUrl };
+  const deleteUrl = data.data.delete_url || null;
+  return { url, thumbUrl, deleteUrl };
 }
 
 function renderImagePreviews() {
@@ -1197,8 +1202,10 @@ function renderImagePreviews() {
     item.className = "image-preview-item";
     item.innerHTML = `${imgWrap(selectedImageThumbUrls[idx] || url, { imgAttrs: 'loading="lazy"' })}<button type="button" class="image-preview-remove" title="삭제">✕</button>`;
     item.querySelector(".image-preview-remove").addEventListener("click", () => {
+      tryDeleteImgbbImages([selectedImageDeleteUrls[idx]]); // 미리보기에서 뺀 사진은 이미 올라간 거라 같이 정리
       selectedImageUrls.splice(idx, 1);
       selectedImageThumbUrls.splice(idx, 1);
+      selectedImageDeleteUrls.splice(idx, 1);
       renderImagePreviews();
     });
     listEl.appendChild(item);
@@ -1208,6 +1215,7 @@ function renderImagePreviews() {
 function resetImageUploadUI() {
   selectedImageUrls = [];
   selectedImageThumbUrls = [];
+  selectedImageDeleteUrls = [];
   el("postImageFiles").value = "";
   el("imageUploadStatus").classList.add("hidden");
   renderImagePreviews();
@@ -1229,7 +1237,7 @@ el("postImageFiles").addEventListener("change", async (e) => {
       .then((res) => {
         done++;
         if (!hadError) statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
-        return { ok: true, url: res.url, thumbUrl: res.thumbUrl };
+        return { ok: true, url: res.url, thumbUrl: res.thumbUrl, deleteUrl: res.deleteUrl };
       })
       .catch((err) => {
         done++;
@@ -1244,6 +1252,7 @@ el("postImageFiles").addEventListener("change", async (e) => {
     if (!r.ok) return;
     selectedImageUrls.push(r.url);
     selectedImageThumbUrls.push(r.thumbUrl);
+    selectedImageDeleteUrls.push(r.deleteUrl || null);
   });
   renderImagePreviews();
 
@@ -1263,9 +1272,10 @@ el("postForm").addEventListener("submit", async (e) => {
     const content = el("postContent").value.trim();
     const imageUrls = selectedImageUrls.slice();
     const imageThumbUrls = selectedImageThumbUrls.slice();
+    const imageDeleteUrls = selectedImageDeleteUrls.slice();
 
     if (editingPostId) {
-      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls });
+      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls });
       invalidateBoardCache(editingPostBoardId);
       const idToReopen = editingPostId;
       editingPostId = null;
@@ -1277,7 +1287,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
     await addDoc(collection(db, "posts"), {
       boardId: currentBoardId,
-      title, content, imageUrls, imageThumbUrls,
+      title, content, imageUrls, imageThumbUrls, imageDeleteUrls,
       author: currentUser.email.split("@")[0],
       createdAt: serverTimestamp(),
       views: 0,
@@ -1549,6 +1559,7 @@ async function openPost(postId, opts = {}) {
 
     el("deletePostBtn").addEventListener("click", async () => {
       if (!confirm("이 게시글을 삭제할까요?")) return;
+      tryDeleteImgbbImages(p.imageDeleteUrls);
       await deleteDoc(ref);
       invalidateBoardCache(p.boardId);
       showListView();
@@ -1563,6 +1574,8 @@ async function openPost(postId, opts = {}) {
       el("postContent").value = p.content || "";
       selectedImageUrls = images.slice();
       selectedImageThumbUrls = getThumbs(p).slice();
+      // 예전 글은 imageDeleteUrls가 없을 수 있어서, 사진 개수에 맞춰 null로 채워둬요.
+      selectedImageDeleteUrls = images.map((u, i) => (Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls[i] : null) || null);
       renderImagePreviews();
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
       currentBoard = boardOfPost || currentBoard;
@@ -2408,7 +2421,7 @@ el("postAdminUnpinBtn").addEventListener("click", () => bulkSetPinned(false));
 el("postAdminDeleteBtn").addEventListener("click", async () => {
   if (!adminSelectedPostIds.size) return;
   if (!confirm(`선택한 게시글 ${adminSelectedPostIds.size}개를 삭제할까요? 되돌릴 수 없어요.`)) return;
-  await Promise.all([...adminSelectedPostIds].map(id => deleteDoc(doc(db, "posts", id))));
+  await Promise.all([...adminSelectedPostIds].map(id => deletePostAndImages(id)));
   invalidateBoardCache();
   loadPostAdminList();
 });
@@ -2650,6 +2663,28 @@ function getImages(p) {
   if (Array.isArray(p.imageUrls) && p.imageUrls.length) return p.imageUrls;
   if (p.imageUrl) return [p.imageUrl];
   return [];
+}
+
+// 게시글을 지울 때 ImgBB에 남은 이미지도 같이 지우려고 시도해요.
+// ImgBB는 정식 삭제 API가 없어서 업로드 시 받은 delete_url에 접속하는 방식으로만 지울 수 있고,
+// 브라우저 CORS 때문에 성공했는지 확인은 못 해요(요청만 보내고 결과는 신경 안 씀).
+// 그래서 실패해도 절대 게시글 삭제 자체를 막지 않아요 — 어디까지나 "되면 좋고" 정리예요.
+function tryDeleteImgbbImages(deleteUrls) {
+  if (!Array.isArray(deleteUrls)) return;
+  deleteUrls.forEach(url => {
+    if (!url) return;
+    fetch(url, { mode: "no-cors" }).catch(() => {});
+  });
+}
+
+// 게시글 삭제 여러 곳(알림함, 게시글 관리 일괄삭제 등)에서 공통으로 써요.
+// 문서를 미리 한 번 읽어서 imageDeleteUrls를 챙긴 다음 지워요.
+async function deletePostAndImages(postId) {
+  try {
+    const snap = await getDoc(doc(db, "posts", postId));
+    if (snap.exists()) tryDeleteImgbbImages(snap.data().imageDeleteUrls);
+  } catch (e) {}
+  await deleteDoc(doc(db, "posts", postId));
 }
 
 // 본문 안에 [사진1] 같은 표시가 있으면(채록소 확장프로그램이 자동으로 넣어줌) 그 자리에
