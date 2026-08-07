@@ -51,10 +51,22 @@ service cloud.firestore {
     // ---------- 회원 ----------
     match /members/{uid} {
       allow read: if true;
-      allow create: if isSignedIn() && request.auth.uid == uid;
-      // 본인 정보 일부 수정 또는 관리자가 권한 부여
-      allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // 가입 시 스스로는 승인 대기(false) 상태로만 만들 수 있음
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.approved == false
+        && request.resource.data.canViewPrivate == false;
+      // 승인 여부/비공개 열람 권한은 관리자만 바꿀 수 있음(본인이 스스로 승격 불가)
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && request.resource.data.approved == resource.data.approved
+            && request.resource.data.canViewPrivate == resource.data.canViewPrivate);
       allow delete: if isAdmin();
+    }
+
+    // ---------- 즐겨찾기(개인 북마크) ----------
+    // 본인 것만 읽고 쓸 수 있음(다른 사람 즐겨찾기는 볼 수도 없음)
+    match /favorites/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
     // ---------- 게시판 목록/구조 ----------

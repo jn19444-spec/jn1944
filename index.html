@@ -17,6 +17,7 @@
 <link rel="preconnect" href="https://ibb.co">
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
 
@@ -282,8 +283,26 @@
 
       <!-- 전체 백업 -->
       <div id="adminTabBackup" class="admin-panel hidden">
-        <p class="hint-text">모든 게시글과 게시판 구조를 JSON 파일로 내려받아요. 가끔 저장해두면 안심돼요.</p>
-        <button id="backupBtn" class="btn btn-ghost">💾 전체 백업 다운로드</button>
+        <p class="hint-text">모든 게시글과 게시판 구조를 JSON 파일로 내려받아요. 링크만 들어있어서 가볍지만, 나중에 ImgBB 링크가 죽으면 이 백업도 같이 못 쓰게 돼요.</p>
+        <button id="backupBtn" class="btn btn-ghost">💾 빠른 백업 (JSON, 링크만)</button>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">이미지 포함 진짜 백업 (zip)</h3>
+        </div>
+        <p class="hint-text">사진 파일 자체를 전부 다운받아서 zip 하나로 묶어요. ImgBB 계정에 무슨 일이 생겨도 이 zip만 있으면 복원할 수 있어요. 사진이 많으면 시간이 좀 걸려요.</p>
+        <button id="backupZipBtn" class="btn btn-ghost">📦 이미지 포함 전체 백업 (zip)</button>
+        <div id="backupZipStatus" class="hint-text"></div>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">백업으로 복원</h3>
+        </div>
+        <p class="hint-text">위에서 만든 zip 백업 파일을 골라서 복원해요. <b>이미 있는 게시판/게시글은 안 건드리고, 없는 것만 새로 만들어요</b>(덮어쓰기 없음). 사진은 전부 새로 ImgBB에 다시 올라가요.</p>
+        <input type="file" id="restoreZipInput" accept=".zip" class="hidden">
+        <label for="restoreZipInput" class="btn btn-ghost">📂 백업 zip 파일 선택</label>
+        <span id="restoreZipFileName" class="hint-text"></span>
+        <button id="restoreZipBtn" class="btn btn-ghost" disabled>♻ 이 백업으로 복원하기</button>
+        <div id="restoreZipStatus" class="hint-text"></div>
+        <div id="restoreZipLog" class="manage-list"></div>
       </div>
     </section>
 

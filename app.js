@@ -6,7 +6,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, query, where, orderBy, addDoc, doc,
-  deleteDoc, getDocs, getDoc, setDoc, serverTimestamp, updateDoc, increment
+  deleteDoc, getDocs, getDoc, setDoc, serverTimestamp, updateDoc, increment,
+  arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
@@ -60,6 +61,7 @@ function emailToId(email) {
 let currentUser = null;
 let isAdmin = false;
 let canViewPrivate = false; // 회원이 비공개 게시판 열람 권한을 받았는지
+let favoritePostIds = new Set(); // 로그인한 사람이 즐겨찾기한 게시글 id들(본인만 봄)
 let currentBoardId = null;
 let currentBoard = null;
 let boardRows = []; // Firestore "boards" 컬렉션의 각 행 (그룹/게시판/구분선)
@@ -215,6 +217,12 @@ async function routeFromLocation() {
     return;
   }
 
+  if (path === "/favorites") {
+    if (currentUser) selectFavorites({ skipUrl: true });
+    else replaceUrl("/");
+    return;
+  }
+
   const postMatch = path.match(/^\/board\/([^/]+)$/);
   if (postMatch) {
     const found = await openPost(postMatch[1], { skipUrl: true });
@@ -232,7 +240,99 @@ async function routeFromLocation() {
 }
 window.addEventListener("popstate", () => { routeFromLocation(); });
 
-// ---------- 인증 상태 ----------
+// ---------- 즐겨찾기(개인 북마크) ----------
+// favorites/{uid} 문서 하나에 postIds 배열로 저장해요. 본인만 읽고 쓸 수 있어요(firestore.rules 참고).
+async function loadFavorites() {
+  favoritePostIds = new Set();
+  if (!currentUser) return;
+  try {
+    const snap = await getDoc(doc(db, "favorites", currentUser.uid));
+    if (snap.exists()) {
+      favoritePostIds = new Set(snap.data().postIds || []);
+    }
+  } catch (e) {
+    // 못 불러와도 그냥 빈 목록으로 시작(치명적이지 않음)
+  }
+}
+
+async function toggleFavorite(postId) {
+  if (!currentUser) return;
+  const isFav = favoritePostIds.has(postId);
+  const ref = doc(db, "favorites", currentUser.uid);
+  try {
+    if (isFav) {
+      favoritePostIds.delete(postId);
+      await setDoc(ref, { postIds: arrayRemove(postId) }, { merge: true });
+    } else {
+      favoritePostIds.add(postId);
+      await setDoc(ref, { postIds: arrayUnion(postId) }, { merge: true });
+    }
+  } catch (e) {
+    // 실패하면 화면 표시를 되돌려요
+    if (isFav) favoritePostIds.add(postId); else favoritePostIds.delete(postId);
+    alert("즐겨찾기 저장에 실패했어요: " + e.message);
+  }
+  const btn = el("favToggleBtn");
+  if (btn) {
+    const nowFav = favoritePostIds.has(postId);
+    btn.textContent = nowFav ? "⭐" : "☆";
+    btn.classList.toggle("active", nowFav);
+  }
+}
+
+function selectFavorites(opts = {}) {
+  currentBoardId = "__favorites__";
+  currentBoard = null;
+  el("currentBoardName").textContent = "⭐ 즐겨찾기";
+  el("writeBtn").classList.add("hidden");
+  showListView();
+  hideHomeDashboard();
+  renderBoardTree();
+  loadFavoritePosts();
+  if (!opts.skipUrl) pushUrl("/favorites");
+}
+
+async function loadFavoritePosts() {
+  const myToken = ++navToken;
+  const listEl = el("postList");
+  listEl.innerHTML = `<p class="empty-state">불러오는 중...</p>`;
+  el("emptyState").classList.add("hidden");
+  el("pagination").classList.add("hidden");
+
+  const ids = Array.from(favoritePostIds);
+  if (!ids.length) {
+    if (myToken !== navToken) return;
+    listEl.innerHTML = "";
+    el("emptyState").classList.remove("hidden");
+    el("emptyState").querySelector("p").textContent = "아직 즐겨찾기한 글이 없어요. 게시글 상세에서 ☆를 눌러보세요.";
+    return;
+  }
+
+  const boardNameOf = (boardId) => (boardRows.find(b => b.id === boardId) || {}).name;
+  const results = await mapWithConcurrency(ids, 6, async (id) => {
+    try {
+      const snap = await getDoc(doc(db, "posts", id));
+      if (!snap.exists()) return null;
+      return { docSnap: snap, boardName: boardNameOf(snap.data().boardId) };
+    } catch (e) {
+      return null; // 삭제됐거나 더 이상 볼 권한이 없는 글은 조용히 건너뜀
+    }
+  });
+  if (myToken !== navToken) return;
+
+  let entries = results.filter(Boolean);
+  if (!entries.length) {
+    listEl.innerHTML = "";
+    el("emptyState").classList.remove("hidden");
+    el("emptyState").querySelector("p").textContent = "즐겨찾기한 글을 더 이상 볼 수 없어요(삭제되었거나 권한이 바뀌었어요).";
+    return;
+  }
+  el("emptyState").classList.add("hidden");
+  entries = sortByDateDesc(entries, e => e.docSnap.data());
+  showPostListPage(entries);
+}
+
+
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   isAdmin = false;
@@ -284,6 +384,7 @@ onAuthStateChanged(auth, async (user) => {
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
   el("musicWidget").classList.toggle("hidden", musicTracks.length === 0 && !isAdmin);
+  await loadFavorites();
 
   await loadBoardConfig();
   if (!didInitialRoute) {
@@ -293,6 +394,7 @@ onAuthStateChanged(auth, async (user) => {
     refreshPendingBadge(); // 관리자 화면을 보는 중이면 뱃지만 갱신
   } else if (currentBoardId === "__all__") loadAllPosts();
   else if (currentBoardId === "__search__") performSearch({ skipUrl: true });
+  else if (currentBoardId === "__favorites__") loadFavoritePosts();
   else if (currentBoardId) loadPosts(currentBoardId);
 });
 
@@ -809,6 +911,14 @@ function renderBoardTree() {
   galleryItem.addEventListener("click", () => selectGallery());
   treeEl.appendChild(galleryItem);
 
+  if (currentUser) {
+    const favItem = document.createElement("div");
+    favItem.className = "board-item all-board-item" + (currentBoardId === "__favorites__" ? " active" : "");
+    favItem.innerHTML = "⭐ 즐겨찾기";
+    favItem.addEventListener("click", () => selectFavorites());
+    treeEl.appendChild(favItem);
+  }
+
   boardRows.forEach(row => {
     if (row.type === "divider") {
       const hr = document.createElement("div");
@@ -876,6 +986,8 @@ function showListView() {
   el("detailView").classList.add("hidden");
   el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
+  const emptyP = el("emptyState").querySelector("p");
+  if (emptyP) emptyP.textContent = "아직 게시글이 없어요.";
 }
 function showWriteView() {
   el("listView").classList.add("hidden");
@@ -1126,11 +1238,54 @@ async function performSearch(opts = {}) {
   showPostListPage(entries);
 }
 
+// ---------- 글쓰기 임시저장 ----------
+// 타이핑하는 동안 브라우저(localStorage)에 조금씩 저장해뒀다가, 실수로 창을 닫아도
+// 다시 글쓰기를 열면 복원해줘요. 새 글/수정 글마다 키를 따로 둬요.
+let draftSaveTimer = null;
+function draftKey() {
+  return editingPostId ? `gugu_draft_edit_${editingPostId}` : "gugu_draft_new";
+}
+function saveDraftNow() {
+  const title = el("postTitle").value;
+  const content = el("postContent").value;
+  try {
+    if (!title.trim() && !content.trim()) {
+      localStorage.removeItem(draftKey());
+      return;
+    }
+    localStorage.setItem(draftKey(), JSON.stringify({ title, content, savedAt: Date.now() }));
+  } catch (e) {}
+}
+function scheduleDraftSave() {
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(saveDraftNow, 800);
+}
+function clearDraft() {
+  try { localStorage.removeItem(draftKey()); } catch (e) {}
+}
+function restoreDraftIfAny({ silent = false } = {}) {
+  try {
+    const raw = localStorage.getItem(draftKey());
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (!d.title && !d.content) return;
+    if (!silent && !confirm("임시저장된 내용이 있어요. 불러올까요?")) {
+      clearDraft();
+      return;
+    }
+    if (d.title) el("postTitle").value = d.title;
+    if (d.content) el("postContent").value = d.content;
+  } catch (e) {}
+}
+el("postTitle").addEventListener("input", scheduleDraftSave);
+el("postContent").addEventListener("input", scheduleDraftSave);
+
 el("writeBtn").addEventListener("click", () => {
   editingPostId = null;
   el("postForm").reset();
   resetImageUploadUI();
   showWriteView();
+  restoreDraftIfAny({ silent: true }); // 새 글은 조용히 복원(가장 흔한 케이스라 확인창 없이)
 });
 el("cancelWriteBtn").addEventListener("click", () => { editingPostId = null; resetImageUploadUI(); showListView(); });
 el("backBtn").addEventListener("click", () => {
@@ -1277,6 +1432,7 @@ el("postForm").addEventListener("submit", async (e) => {
     if (editingPostId) {
       await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls });
       invalidateBoardCache(editingPostBoardId);
+      clearDraft();
       const idToReopen = editingPostId;
       editingPostId = null;
       el("postForm").reset();
@@ -1295,6 +1451,7 @@ el("postForm").addEventListener("submit", async (e) => {
       visibility: getVisibility(currentBoard),
     });
     invalidateBoardCache(currentBoardId);
+    clearDraft();
     el("postForm").reset();
     resetImageUploadUI();
     showListView();
@@ -1521,7 +1678,9 @@ async function openPost(postId, opts = {}) {
   const images = getImages(p);
   el("postDetail").innerHTML = `
     <h1>${escapeHtml(p.title)}</h1>
-    <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}</div>
+    <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}
+      ${currentUser ? `<button id="favToggleBtn" class="fav-toggle-btn${favoritePostIds.has(postId) ? " active" : ""}" title="즐겨찾기">${favoritePostIds.has(postId) ? "⭐" : "☆"}</button>` : ""}
+    </div>
     <div class="content-text">${renderContentWithImages(p, images)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="pinPostBtn" class="btn btn-ghost">${p.isPinned ? "📌 고정 해제" : "📌 고정하기"}</button>
@@ -1549,6 +1708,10 @@ async function openPost(postId, opts = {}) {
   if (prevBtn) prevBtn.addEventListener("click", () => openPost(prevBtn.dataset.id));
   const nextBtn = document.querySelector("#postDetail .post-nav-btn.next");
   if (nextBtn) nextBtn.addEventListener("click", () => openPost(nextBtn.dataset.id));
+
+  if (currentUser) {
+    el("favToggleBtn").addEventListener("click", () => toggleFavorite(postId));
+  }
 
   if (isAdmin) {
     el("pinPostBtn").addEventListener("click", async () => {
@@ -1580,6 +1743,7 @@ async function openPost(postId, opts = {}) {
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
       currentBoard = boardOfPost || currentBoard;
       showWriteView();
+      restoreDraftIfAny(); // 수정 중이던 임시저장본이 있으면 물어보고 복원(원본을 덮어쓰는 거라 확인창 표시)
     });
 
     el("movePostBtn").addEventListener("click", () => openMoveModal(postId, p.boardId));
@@ -2602,7 +2766,194 @@ document.addEventListener("keydown", (e) => {
 })();
 
 // ---------- 전체 백업 ----------
-el("backupBtn").addEventListener("click", async () => {
+// ---------- 이미지 포함 진짜 백업 (zip) ----------
+el("backupZipBtn").addEventListener("click", async () => {
+  const btn = el("backupZipBtn");
+  const statusEl = el("backupZipStatus");
+  btn.disabled = true;
+  try {
+    statusEl.textContent = "게시글을 불러오는 중...";
+    const postsSnap = await getDocs(collection(db, "posts"));
+    const zip = new JSZip();
+    const imgFolder = zip.folder("images");
+
+    const posts = [];
+    let done = 0;
+    const total = postsSnap.docs.length;
+    statusEl.textContent = `이미지 받는 중... (0/${total})`;
+
+    await mapWithConcurrency(postsSnap.docs, 4, async (docSnap) => {
+      const data = docSnap.data();
+      const images = getImages(data);
+      const imageFiles = [];
+      for (let i = 0; i < images.length; i++) {
+        try {
+          const resp = await fetch(images[i]);
+          if (!resp.ok) throw new Error("다운로드 실패");
+          const blob = await resp.blob();
+          const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+          const relPath = `${docSnap.id}/${i}.${ext}`;
+          imgFolder.file(relPath, blob);
+          imageFiles.push(`images/${relPath}`);
+        } catch (e) {
+          imageFiles.push(null); // 이 사진은 못 받았어요(원래 링크는 imageUrls에 남아있음)
+        }
+      }
+      posts.push({
+        id: docSnap.id,
+        boardId: data.boardId,
+        title: data.title || "",
+        content: data.content || "",
+        author: data.author || "",
+        imageUrls: images, // 혹시 몰라 원래 링크도 같이 남겨둠(복원 시 파일이 없으면 이거라도 씀)
+        imageFiles, // zip 안에서의 실제 파일 경로(복원용)
+        views: data.views || 0,
+        isPinned: !!data.isPinned,
+        visibility: getVisibility(data),
+        createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : null,
+      });
+      done++;
+      statusEl.textContent = `이미지 받는 중... (${done}/${total})`;
+    });
+
+    const manifest = {
+      exportedAt: new Date().toISOString(),
+      boards: boardRows.map((row) => ({ id: row.id, type: row.type, name: row.name, isPrivate: !!row.isPrivate, visibility: getVisibility(row), order: row.order })),
+      posts,
+    };
+    zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+    statusEl.textContent = "압축 파일 만드는 중...";
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gugu-backup-full-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = `완료! 게시글 ${total}개, 이미지 파일까지 포함해서 압축했어요.`;
+  } catch (e) {
+    statusEl.textContent = "백업 실패: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- 백업으로 복원 ----------
+el("restoreZipInput").addEventListener("change", () => {
+  const f = el("restoreZipInput").files[0];
+  el("restoreZipFileName").textContent = f ? f.name : "";
+  el("restoreZipBtn").disabled = !f;
+});
+
+el("restoreZipBtn").addEventListener("click", async () => {
+  const file = el("restoreZipInput").files[0];
+  if (!file) return;
+  if (!confirm(
+    "백업 zip 파일로 복원할까요?\n\n" +
+    "- 이미 있는 게시판/게시글은 그대로 두고, 없는 것만 새로 만들어요(덮어쓰기 없음)\n" +
+    "- 사진은 전부 새로 ImgBB에 다시 올라가서 시간이 걸릴 수 있어요\n" +
+    "- 게시글이 많으면 몇 분 걸릴 수 있어요, 끝날 때까지 창을 닫지 말아주세요"
+  )) return;
+
+  const btn = el("restoreZipBtn");
+  const statusEl = el("restoreZipStatus");
+  const logEl = el("restoreZipLog");
+  logEl.innerHTML = "";
+  btn.disabled = true;
+
+  try {
+    statusEl.textContent = "zip 파일 읽는 중...";
+    const zip = await JSZip.loadAsync(file);
+    const manifestEntry = zip.file("manifest.json");
+    if (!manifestEntry) throw new Error("manifest.json이 없는 파일이에요. 이 사이트에서 만든 백업 zip이 맞는지 확인해주세요.");
+    const manifest = JSON.parse(await manifestEntry.async("string"));
+
+    // 1) 게시판 복원 (없는 것만)
+    statusEl.textContent = "게시판 확인 중...";
+    const existingBoardIds = new Set(boardRows.map(r => r.id));
+    let boardsCreated = 0;
+    for (const b of (manifest.boards || [])) {
+      if (existingBoardIds.has(b.id)) continue;
+      await setDoc(doc(db, "boards", b.id), {
+        type: b.type,
+        name: b.name,
+        isPrivate: !!b.isPrivate,
+        visibility: b.visibility || (b.isPrivate ? "private" : "public"),
+        order: b.order || 0,
+      });
+      boardsCreated++;
+    }
+    if (boardsCreated) await loadBoardConfig();
+
+    // 2) 게시글 복원 (없는 것만, 사진은 전부 새로 ImgBB에 업로드)
+    const posts = manifest.posts || [];
+    const total = posts.length;
+    let postsCreated = 0, postsSkipped = 0, imagesRestored = 0, imagesFailed = 0, done = 0;
+
+    await mapWithConcurrency(posts, 3, async (p) => {
+      done++;
+      statusEl.textContent = `게시글 복원 중... (${done}/${total})`;
+
+      const already = await getDoc(doc(db, "posts", p.id)).catch(() => null);
+      if (already && already.exists()) { postsSkipped++; return; }
+
+      const imageFiles = Array.isArray(p.imageFiles) ? p.imageFiles : [];
+      const newUrls = [], newThumbs = [], newDeleteUrls = [];
+      for (let i = 0; i < imageFiles.length; i++) {
+        const path = imageFiles[i];
+        if (!path) {
+          // zip 안에 파일이 없던 사진: 원래 링크라도 있으면 그거라도 살려둠(안 죽었을 수도 있으니)
+          if (p.imageUrls && p.imageUrls[i]) { newUrls.push(p.imageUrls[i]); newThumbs.push(p.imageUrls[i]); newDeleteUrls.push(null); }
+          continue;
+        }
+        try {
+          const entry = zip.file(path);
+          if (!entry) throw new Error("zip 안에 파일이 없어요");
+          const blob = await entry.async("blob");
+          const upFile = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
+          const { url, thumbUrl, deleteUrl } = await uploadToImgBB(upFile);
+          newUrls.push(url); newThumbs.push(thumbUrl); newDeleteUrls.push(deleteUrl || null);
+          imagesRestored++;
+        } catch (e) {
+          imagesFailed++;
+          const row = document.createElement("div");
+          row.className = "manage-row";
+          row.innerHTML = `<span class="manage-row-label" style="color:var(--accent-rose); font-size:12px;">이미지 복원 실패: "${escapeHtml(p.title || "")}" (${i + 1}번째 사진)</span>`;
+          logEl.appendChild(row);
+        }
+      }
+
+      await setDoc(doc(db, "posts", p.id), {
+        boardId: p.boardId,
+        title: p.title || "",
+        content: p.content || "",
+        author: p.author || "",
+        imageUrls: newUrls,
+        imageThumbUrls: newThumbs,
+        imageDeleteUrls: newDeleteUrls,
+        views: p.views || 0,
+        isPinned: !!p.isPinned,
+        visibility: p.visibility || "public",
+        isPrivate: p.visibility === "private",
+        createdAt: p.createdAt ? new Date(p.createdAt) : serverTimestamp(),
+        imagesResized: true,
+      });
+      postsCreated++;
+    });
+
+    invalidateBoardCache();
+    statusEl.textContent = `복원 완료! 게시글 ${postsCreated}개 새로 만듦 · ${postsSkipped}개는 이미 있어서 건너뜀 · 이미지 ${imagesRestored}개 복원 · ${imagesFailed}개 실패`;
+  } catch (e) {
+    statusEl.textContent = "복원 실패: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+
   const btn = el("backupBtn");
   const originalText = btn.textContent;
   btn.disabled = true;
