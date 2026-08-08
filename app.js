@@ -3156,18 +3156,19 @@ el("exportForOfflineBtn").addEventListener("click", async () => {
   const statusEl = el("exportForOfflineStatus");
   btn.disabled = true;
   try {
-    statusEl.textContent = "게시글을 불러오는 중...";
-    const postsSnap = await getDocs(collection(db, "posts"));
-
     // 게시판은 실제 게시판만 옮겨요(그룹 제목/구분선 제외). 온라인 문서 id를 그대로 오프라인 쪽 id로 써요.
     const boards = boardRows.filter(r => r.type === "board").map(r => ({ id: r.id, type: "board", name: r.name, order: r.order || 0 }));
 
-    const outPosts = [];
+    // 사진이 많으면 base64를 전부 합친 문자열이 브라우저가 다룰 수 있는 최대 문자열 길이를
+    // 넘어버릴 수 있어요("Invalid string length"). 그래서 JSON.stringify로 한 번에 큰 문자열을
+    // 만들지 않고, 게시글별로 작게 나눠서 Blob 조각으로 이어붙여요(브라우저가 내부적으로 처리).
+    const blobParts = ['{"exportedAt":' + Date.now() + ',"boards":' + JSON.stringify(boards) + ',"config":[],"posts":['];
+    let postCount = 0;
     let done = 0;
-    const total = postsSnap.docs.length;
-    statusEl.textContent = `사진 받는 중... (0/${total})`;
+    const total = (await getDocs(collection(db, "posts"))).docs;
+    statusEl.textContent = `사진 받는 중... (0/${total.length})`;
 
-    await mapWithConcurrency(postsSnap.docs, 3, async (docSnap) => {
+    await mapWithConcurrency(total, 3, async (docSnap) => {
       const data = docSnap.data();
       const urls = getImages(data);
       const images = [];
@@ -3181,7 +3182,7 @@ el("exportForOfflineBtn").addEventListener("click", async () => {
           // 못 받은 사진은 그냥 빼요(오프라인 파일에 안 들어감)
         }
       }
-      outPosts.push({
+      const postJson = JSON.stringify({
         id: docSnap.id,
         boardId: data.boardId,
         title: data.title || "",
@@ -3191,12 +3192,14 @@ el("exportForOfflineBtn").addEventListener("click", async () => {
         views: data.views || 0,
         isPinned: !!data.isPinned,
       });
+      blobParts.push((postCount > 0 ? "," : "") + postJson); // 이 push는 await 없이 동기로 일어나서 순서가 꼬이지 않아요
+      postCount++;
       done++;
-      statusEl.textContent = `사진 받는 중... (${done}/${total})`;
+      statusEl.textContent = `사진 받는 중... (${done}/${total.length})`;
     });
+    blobParts.push("]}");
 
-    const backup = { exportedAt: Date.now(), boards, posts: outPosts, config: [] };
-    const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+    const blob = new Blob(blobParts, { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -3205,7 +3208,7 @@ el("exportForOfflineBtn").addEventListener("click", async () => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    statusEl.textContent = `완료! 게시글 ${total}개로 파일을 만들었어요. 오프라인 버전에서 이 파일로 복원해주세요.`;
+    statusEl.textContent = `완료! 게시글 ${total.length}개로 파일을 만들었어요. 오프라인 버전에서 이 파일로 복원해주세요.`;
   } catch (e) {
     statusEl.textContent = "내보내기 실패: " + e.message;
   } finally {
