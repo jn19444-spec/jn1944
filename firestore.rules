@@ -92,5 +92,15 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // ---------- 댓글 ----------
+    match /comments/{commentId} {
+      allow read: if canReadPost(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data);
+      allow create: if isApprovedMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && canReadPost(get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.authorUid == request.auth.uid);
+      allow update: if false;
+    }
   }
 }

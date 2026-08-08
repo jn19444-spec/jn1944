@@ -380,6 +380,7 @@ onAuthStateChanged(auth, async (user) => {
   el("loginBtn").classList.toggle("hidden", !!user);
   el("signupBtn").classList.toggle("hidden", !!user);
   el("logoutBtn").classList.toggle("hidden", !user);
+  el("nicknameBtn").classList.toggle("hidden", !user);
   el("adminMenuBtn").classList.toggle("hidden", !isAdmin);
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
@@ -1719,9 +1720,11 @@ async function openPost(postId, opts = {}) {
         ? `<button class="post-nav-btn next" data-id="${nextEntry.docSnap.id}"><span class="post-nav-label">다음 글 ▶</span><span class="post-nav-title">${escapeHtml(nextEntry.docSnap.data().title)}</span></button>`
         : `<span class="post-nav-empty"></span>`}
     </div>` : ""}
+    <div id="commentsSection" class="comments-section"></div>
   `;
   showDetailView();
   if (!opts.skipUrl) pushUrl(`/board/${postId}`);
+  loadComments(postId);
 
   document.querySelectorAll("#postDetail .detail-img").forEach(imgEl => {
     imgEl.addEventListener("click", () => openLightbox(images, Number(imgEl.dataset.idx)));
@@ -1773,6 +1776,105 @@ async function openPost(postId, opts = {}) {
   }
   return true;
 }
+
+// ---------- 댓글 ----------
+async function getMyNickname() {
+  if (!currentUser) return "";
+  try {
+    const snap = await getDoc(doc(db, "members", currentUser.uid));
+    if (snap.exists() && snap.data().nickname) return snap.data().nickname;
+  } catch (e) {}
+  return emailToId(currentUser.email);
+}
+
+async function loadComments(postId) {
+  const section = el("commentsSection");
+  const myName = currentUser ? await getMyNickname() : "";
+  section.innerHTML = `
+    <h3 class="comments-title">💬 댓글</h3>
+    <div id="commentsList" class="comments-list"><p class="hint-text">불러오는 중...</p></div>
+    ${currentUser
+      ? `<form id="commentForm" class="comment-form">
+          <textarea id="commentInput" placeholder="${escapeHtml(myName)}(으)로 댓글 남기기" rows="2" maxlength="1000" required></textarea>
+          <button type="submit" class="btn btn-ghost btn-sm">등록</button>
+        </form>`
+      : `<p class="hint-text">댓글을 쓰려면 로그인해주세요.</p>`}
+  `;
+
+  try {
+    const q = query(collection(db, "comments"), where("postId", "==", postId), orderBy("createdAt", "asc"));
+    const snap = await getDocs(q);
+    renderCommentsList(snap.docs, postId);
+  } catch (e) {
+    el("commentsList").innerHTML = `<p class="hint-text">댓글을 불러오지 못했어요.</p>`;
+  }
+
+  if (currentUser) {
+    el("commentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = el("commentInput");
+      const content = input.value.trim();
+      if (!content) return;
+      const btn = e.target.querySelector("button[type=submit]");
+      btn.disabled = true;
+      try {
+        const nickname = await getMyNickname();
+        await addDoc(collection(db, "comments"), {
+          postId, authorUid: currentUser.uid, authorName: nickname, content, createdAt: serverTimestamp(),
+        });
+        input.value = "";
+        loadComments(postId);
+      } catch (err) {
+        alert("댓글 등록 실패: " + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+}
+
+function renderCommentsList(docs, postId) {
+  const listEl = el("commentsList");
+  if (!docs.length) { listEl.innerHTML = `<p class="hint-text">아직 댓글이 없어요.</p>`; return; }
+  listEl.innerHTML = docs.map(d => {
+    const c = d.data();
+    const canDelete = isAdmin || (currentUser && currentUser.uid === c.authorUid);
+    return `
+      <div class="comment-row">
+        <div class="comment-head">
+          <span class="comment-author">${escapeHtml(c.authorName || "익명")}</span>
+          <span class="comment-date">${formatDate(c.createdAt)}</span>
+          ${canDelete ? `<button class="comment-delete-btn" data-id="${d.id}">삭제</button>` : ""}
+        </div>
+        <div class="comment-body">${escapeHtml(c.content).replace(/\n/g, "<br>")}</div>
+      </div>
+    `;
+  }).join("");
+  listEl.querySelectorAll(".comment-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("댓글을 삭제할까요?")) return;
+      await deleteDoc(doc(db, "comments", btn.dataset.id));
+      loadComments(postId);
+    });
+  });
+}
+
+// ---------- 닉네임 ----------
+el("nicknameBtn").addEventListener("click", async () => {
+  if (!currentUser) return;
+  const current = await getMyNickname();
+  const next = prompt("사용할 닉네임을 입력해주세요 (댓글 등에 표시돼요)", current);
+  if (next === null) return; // 취소
+  const trimmed = next.trim();
+  if (!trimmed) { alert("닉네임을 입력해주세요."); return; }
+  if (trimmed.length > 20) { alert("닉네임은 20자 이내로 입력해주세요."); return; }
+  try {
+    await updateDoc(doc(db, "members", currentUser.uid), { nickname: trimmed });
+    alert("닉네임을 저장했어요!");
+  } catch (err) {
+    alert("저장 실패: " + err.message);
+  }
+});
 
 // ---------- 게시글 이동 ----------
 function openMoveModal(postId, currentPostBoardId) {

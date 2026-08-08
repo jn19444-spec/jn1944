@@ -768,3 +768,28 @@ input[type="range"].music-volume::-moz-range-thumb{
   .music-widget{ right:14px; bottom:14px; }
   .music-panel{ width:calc(100vw - 28px); }
 }
+
+/* ---------- 댓글 ---------- */
+.comments-section{
+  margin-top:28px; padding-top:20px; border-top:1px solid var(--line);
+}
+.comments-title{ font-family:var(--font-display); font-size:16px; margin:0 0 12px; }
+.comments-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+.comment-row{
+  background:var(--bg-panel-2); border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+}
+.comment-head{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.comment-author{ font-size:12.5px; font-weight:700; color:var(--accent-teal); }
+.comment-date{ font-size:11px; color:var(--text-dim); }
+.comment-delete-btn{
+  margin-left:auto; background:none; border:none; color:var(--text-dim);
+  font-size:11px; cursor:pointer; padding:2px 4px;
+}
+.comment-delete-btn:hover{ color:var(--accent-rose); }
+.comment-body{ font-size:13px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+.comment-form{ display:flex; gap:8px; align-items:flex-end; }
+.comment-form textarea{
+  flex:1; resize:vertical; min-height:40px;
+  background:var(--bg-panel-2); border:1px solid var(--line); border-radius:10px;
+  color:var(--text-main); padding:8px 10px; font-size:13px; font-family:inherit;
+}
