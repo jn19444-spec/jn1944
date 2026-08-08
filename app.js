@@ -2977,6 +2977,7 @@ el("restoreZipBtn").addEventListener("click", async () => {
 });
 
 
+el("backupBtn").addEventListener("click", async () => {
   const btn = el("backupBtn");
   const originalText = btn.textContent;
   btn.disabled = true;
