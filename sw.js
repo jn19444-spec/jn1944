@@ -4,7 +4,7 @@
 // 사이트를 한창 자주 업데이트하는 중이라, CSS/JS도 "일단 저장된 것부터 보여주기"가 아니라
 // HTML처럼 "새 버전을 먼저 받아오고 실패했을 때만 저장된 것으로 대체"하도록 함.
 // (저장된 옛날 CSS가 최신 HTML 구조랑 안 맞아서 스타일이 깨지는 문제 방지)
-const CACHE_NAME = "gugu-shell-v9";
+const CACHE_NAME = "gugu-shell-v10";
 
 // 게시글 이미지(ImgBB 등)는 내용이 절대 안 바뀌는 파일이라 여기는 반대로
 // "한 번 받으면 그대로 재사용"하는 별도 캐시를 둬요. 강제 새로고침을 해도
@@ -26,7 +26,13 @@ const PRECACHE_URLS = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then((cache) =>
+        Promise.all(PRECACHE_URLS.map((url) =>
+          fetch(new Request(url, { cache: "no-store" }))
+            .then((res) => cache.put(url, res))
+            .catch(() => {}) // 하나 실패해도 설치 자체는 계속 진행
+        ))
+      )
       .then(() => self.skipWaiting())
   );
 });
@@ -94,8 +100,11 @@ self.addEventListener("fetch", (event) => {
   if (new URL(req.url).origin !== self.location.origin) return;
 
   // ---------- 사이트 껍데기(HTML/CSS/JS): 네트워크 우선, 실패하면 캐시 ----------
+  // cache: "no-store"로 브라우저 자체의 숨은 HTTP 캐시까지 우회해요.
+  // (이거 없이 fetch(req)만 하면, 서비스워커는 "네트워크로 요청했다"고 생각해도
+  //  실제로는 브라우저가 조용히 예전 캐시를 돌려줘서 새 파일이 안 보일 수 있었어요)
   event.respondWith(
-    fetch(req)
+    fetch(new Request(req.url, { cache: "no-store" }))
       .then((res) => {
         const resClone = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
