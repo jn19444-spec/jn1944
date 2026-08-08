@@ -3139,6 +3139,80 @@ el("offlineImportBtn").addEventListener("click", async () => {
   }
 });
 
+// ---------- 오프라인 버전으로 내보내기 ----------
+// 온라인 게시글의 사진(ImgBB 링크)을 전부 다시 다운받아 base64로 바꿔서,
+// 오프라인 버전이 그대로 읽을 수 있는 백업 파일 형태로 만들어요.
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+el("exportForOfflineBtn").addEventListener("click", async () => {
+  const btn = el("exportForOfflineBtn");
+  const statusEl = el("exportForOfflineStatus");
+  btn.disabled = true;
+  try {
+    statusEl.textContent = "게시글을 불러오는 중...";
+    const postsSnap = await getDocs(collection(db, "posts"));
+
+    // 게시판은 실제 게시판만 옮겨요(그룹 제목/구분선 제외). 온라인 문서 id를 그대로 오프라인 쪽 id로 써요.
+    const boards = boardRows.filter(r => r.type === "board").map(r => ({ id: r.id, type: "board", name: r.name, order: r.order || 0 }));
+
+    const outPosts = [];
+    let done = 0;
+    const total = postsSnap.docs.length;
+    statusEl.textContent = `사진 받는 중... (0/${total})`;
+
+    await mapWithConcurrency(postsSnap.docs, 3, async (docSnap) => {
+      const data = docSnap.data();
+      const urls = getImages(data);
+      const images = [];
+      for (const u of urls) {
+        try {
+          const resp = await fetch(u);
+          if (!resp.ok) throw new Error("다운로드 실패");
+          const blob = await resp.blob();
+          images.push(await blobToDataUrl(blob));
+        } catch (e) {
+          // 못 받은 사진은 그냥 빼요(오프라인 파일에 안 들어감)
+        }
+      }
+      outPosts.push({
+        id: docSnap.id,
+        boardId: data.boardId,
+        title: data.title || "",
+        content: data.content || "",
+        images,
+        createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().getTime() : Date.now(),
+        views: data.views || 0,
+        isPinned: !!data.isPinned,
+      });
+      done++;
+      statusEl.textContent = `사진 받는 중... (${done}/${total})`;
+    });
+
+    const backup = { exportedAt: Date.now(), boards, posts: outPosts, config: [] };
+    const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gugu-offline-import-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = `완료! 게시글 ${total}개로 파일을 만들었어요. 오프라인 버전에서 이 파일로 복원해주세요.`;
+  } catch (e) {
+    statusEl.textContent = "내보내기 실패: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ---------- 유틸 ----------
 // 이미지를 <span class="img-wrap">로 감싸서 로딩중 스피너 → 로드완료/에러 상태를 자동으로 표시
 function imgWrap(src, opts = {}) {
