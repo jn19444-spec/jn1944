@@ -4,7 +4,7 @@
 // 사이트를 한창 자주 업데이트하는 중이라, CSS/JS도 "일단 저장된 것부터 보여주기"가 아니라
 // HTML처럼 "새 버전을 먼저 받아오고 실패했을 때만 저장된 것으로 대체"하도록 함.
 // (저장된 옛날 CSS가 최신 HTML 구조랑 안 맞아서 스타일이 깨지는 문제 방지)
-const CACHE_NAME = "gugu-shell-v10";
+const CACHE_NAME = "gugu-shell-v11";
 
 // 게시글 이미지(ImgBB 등)는 내용이 절대 안 바뀌는 파일이라 여기는 반대로
 // "한 번 받으면 그대로 재사용"하는 별도 캐시를 둬요. 강제 새로고침을 해도
@@ -15,9 +15,9 @@ const IMG_CACHE_MAX = 500; // 이 개수를 넘으면 오래 전에 저장된 �
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./style.css",
-  "./app.js",
-  "./firebase-config.js",
+  "./style.css?v=20260808a",
+  "./app.js?v=20260808a",
+  "./firebase-config.js?v=20260808a",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
