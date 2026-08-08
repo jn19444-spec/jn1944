@@ -386,16 +386,21 @@ onAuthStateChanged(auth, async (user) => {
   el("musicWidget").classList.toggle("hidden", musicTracks.length === 0 && !isAdmin);
   await loadFavorites();
 
-  await loadBoardConfig();
-  if (!didInitialRoute) {
-    didInitialRoute = true;
-    await routeFromLocation();
-  } else if (!el("adminView").classList.contains("hidden")) {
-    refreshPendingBadge(); // 관리자 화면을 보는 중이면 뱃지만 갱신
-  } else if (currentBoardId === "__all__") loadAllPosts();
-  else if (currentBoardId === "__search__") performSearch({ skipUrl: true });
-  else if (currentBoardId === "__favorites__") loadFavoritePosts();
-  else if (currentBoardId) loadPosts(currentBoardId);
+  try {
+    await loadBoardConfig();
+    if (!didInitialRoute) {
+      didInitialRoute = true;
+      await routeFromLocation();
+    } else if (!el("adminView").classList.contains("hidden")) {
+      refreshPendingBadge(); // 관리자 화면을 보는 중이면 뱃지만 갱신
+    } else if (currentBoardId === "__all__") loadAllPosts();
+    else if (currentBoardId === "__search__") performSearch({ skipUrl: true });
+    else if (currentBoardId === "__favorites__") loadFavoritePosts();
+    else if (currentBoardId) loadPosts(currentBoardId);
+  } catch (e) {
+    // 초기화 중 어디서든 문제가 생겨도 화면이 빈 채로 멈추지 않게, 최소한 게시판 트리는 다시 그려봄
+    renderBoardTree();
+  }
 });
 
 el("loginBtn").addEventListener("click", () => el("loginModal").classList.remove("hidden"));
@@ -807,9 +812,27 @@ function updatePendingBadge(count) {
 }
 
 // ---------- 게시판 구성 불러오기 ----------
-async function loadBoardConfig() {
-  const q = query(collection(db, "boards"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
+async function loadBoardConfig(isRetry = false) {
+  let snap;
+  try {
+    const q = query(collection(db, "boards"), orderBy("order", "asc"));
+    snap = await getDocs(q);
+  } catch (e) {
+    if (!isRetry) {
+      // 서버 응답이 잠깐 느리거나 끊긴 걸 수도 있으니, 1.5초 뒤 한 번만 조용히 다시 시도해봄
+      await new Promise(r => setTimeout(r, 1500));
+      return loadBoardConfig(true);
+    }
+    // 재시도까지 실패하면, 화면을 빈 채로 방치하지 않고 안내 문구라도 보여줌
+    boardRows = [];
+    const treeEl = el("boardTree");
+    if (treeEl) {
+      treeEl.innerHTML = `<p class="empty-state">게시판을 불러오지 못했어요.<br><button id="retryLoadBoardsBtn" class="btn btn-ghost" style="margin-top:8px;">다시 시도</button></p>`;
+      const retryBtn = el("retryLoadBoardsBtn");
+      if (retryBtn) retryBtn.addEventListener("click", () => loadBoardConfig());
+    }
+    return;
+  }
 
   if (snap.empty) {
     if (isAdmin) {
