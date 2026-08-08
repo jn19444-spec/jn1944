@@ -3177,7 +3177,12 @@ el("exportForOfflineBtn").addEventListener("click", async () => {
           const resp = await fetch(u);
           if (!resp.ok) throw new Error("다운로드 실패");
           const blob = await resp.blob();
-          images.push(await blobToDataUrl(blob));
+          // 오프라인 백업은 사진이 다 base64로 파일 안에 통째로 들어가기 때문에,
+          // 원본 화질 그대로 넣으면 파일이 너무 커져서 나중에 오프라인 브라우저가
+          // 그 파일을 열다가(JSON.parse) 메모리 부족으로 탭이 죽을 수 있어요.
+          // 그래서 여기서 한 번 더 작게 압축해서 넣어요(화면에서 보기엔 충분한 화질).
+          const resizedBlob = await resizeImageFile(blob, 1000, 0.72);
+          images.push(await blobToDataUrl(resizedBlob));
         } catch (e) {
           // 못 받은 사진은 그냥 빼요(오프라인 파일에 안 들어감)
         }
