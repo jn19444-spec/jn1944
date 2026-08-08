@@ -304,6 +304,17 @@
         <button id="restoreZipBtn" class="btn btn-ghost" disabled>♻ 이 백업으로 복원하기</button>
         <div id="restoreZipStatus" class="hint-text"></div>
         <div id="restoreZipLog" class="manage-list"></div>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">📥 오프라인 버전 백업 가져오기</h3>
+        </div>
+        <p class="hint-text">오프라인(이 기기 전용) 버전에서 받은 백업 파일(<code>gugu-offline-backup-*.json</code>)을 여기로 가져와서 이 온라인 사이트로 옮길 수 있어요. 사진은 자동으로 ImgBB에 새로 올라가요. <b>이미 있는 게시판은 이름이 같으면 합치고, 게시글은 항상 새로 추가</b>돼요(중복 방지를 위해 같은 파일을 두 번 가져오지 않도록 주의해주세요).</p>
+        <input type="file" id="offlineImportInput" accept=".json" class="hidden">
+        <label for="offlineImportInput" class="btn btn-ghost">📂 오프라인 백업 파일 선택</label>
+        <span id="offlineImportFileName" class="hint-text"></span>
+        <button id="offlineImportBtn" class="btn btn-ghost" disabled>📥 이 파일 가져오기</button>
+        <div id="offlineImportStatus" class="hint-text"></div>
+        <div id="offlineImportLog" class="manage-list"></div>
       </div>
     </section>
 

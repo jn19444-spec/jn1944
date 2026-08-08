@@ -3021,6 +3021,124 @@ el("backupBtn").addEventListener("click", async () => {
   }
 });
 
+// ---------- 오프라인 버전 백업 가져오기 ----------
+// 오프라인 버전은 사진을 base64(dataURL) 형태로 글 안에 그대로 들고 있어서,
+// 그걸 하나씩 ImgBB에 새로 업로드하고 나온 링크로 바꿔서 온라인 Firestore에 저장해요.
+function dataUrlToFile(dataUrl, filename) {
+  const [header, base64] = dataUrl.split(",");
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], filename, { type: mime });
+}
+
+el("offlineImportInput").addEventListener("change", () => {
+  const f = el("offlineImportInput").files[0];
+  el("offlineImportFileName").textContent = f ? f.name : "";
+  el("offlineImportBtn").disabled = !f;
+});
+
+el("offlineImportBtn").addEventListener("click", async () => {
+  const file = el("offlineImportInput").files[0];
+  if (!file) return;
+  if (!confirm(
+    "오프라인 백업 파일을 이 온라인 사이트로 가져올까요?\n\n" +
+    "- 이름이 같은 게시판이 이미 있으면 그 게시판으로 합치고, 없으면 새로 만들어요\n" +
+    "- 게시글은 항상 새로 추가돼요 (중복 확인 안 함 - 같은 파일을 두 번 가져오면 글이 두 번 생겨요)\n" +
+    "- 사진이 많으면 시간이 좀 걸릴 수 있어요, 끝날 때까지 창을 닫지 말아주세요"
+  )) return;
+
+  const btn = el("offlineImportBtn");
+  const statusEl = el("offlineImportStatus");
+  const logEl = el("offlineImportLog");
+  logEl.innerHTML = "";
+  btn.disabled = true;
+
+  try {
+    statusEl.textContent = "파일 읽는 중...";
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data.posts)) throw new Error("올바른 오프라인 백업 파일이 아니에요.");
+
+    // 1) 게시판: 이름이 같은 게시판이 있으면 그걸 쓰고, 없으면 새로 만들어요.
+    statusEl.textContent = "게시판 확인 중...";
+    const boardIdMap = new Map();
+    for (const b of (data.boards || [])) {
+      if (b.type !== "board") continue; // 그룹 제목/구분선은 옮기지 않고, 실제 게시판만 옮겨요
+      const existing = boardRows.find(r => r.type === "board" && r.name === b.name);
+      if (existing) {
+        boardIdMap.set(b.id, existing.id);
+      } else {
+        const newDoc = await addDoc(collection(db, "boards"), {
+          type: "board", name: b.name, isPrivate: false, visibility: "public", order: nextOrder(),
+        });
+        boardIdMap.set(b.id, newDoc.id);
+      }
+    }
+    await loadBoardConfig();
+    renderBoardTree();
+
+    // 2) 게시글: 사진을 하나씩 ImgBB에 새로 올리고, Firestore에 새 글로 추가해요.
+    const posts = data.posts;
+    const total = posts.length;
+    let postsCreated = 0, imagesUploaded = 0, imagesFailed = 0, done = 0;
+
+    await mapWithConcurrency(posts, 3, async (p) => {
+      done++;
+      statusEl.textContent = `게시글 가져오는 중... (${done}/${total})`;
+
+      const boardId = boardIdMap.get(p.boardId);
+      if (!boardId) return; // 옮길 게시판을 못 찾은 글은 건너뜀 (그룹/구분선에 붙어있던 경우 등)
+
+      const images = Array.isArray(p.images) ? p.images : [];
+      const newUrls = [], newThumbs = [], newDeleteUrls = [];
+      for (let i = 0; i < images.length; i++) {
+        try {
+          const f2 = dataUrlToFile(images[i], `image-${i}.jpg`);
+          const { url, thumbUrl, deleteUrl } = await uploadToImgBB(f2);
+          newUrls.push(url); newThumbs.push(thumbUrl); newDeleteUrls.push(deleteUrl || null);
+          imagesUploaded++;
+        } catch (e) {
+          imagesFailed++;
+          const row = document.createElement("div");
+          row.className = "manage-row";
+          row.innerHTML = `<span class="manage-row-label" style="color:var(--accent-rose); font-size:12px;">이미지 업로드 실패: "${escapeHtml(p.title || "")}" (${i + 1}번째 사진)</span>`;
+          logEl.appendChild(row);
+        }
+      }
+
+      await addDoc(collection(db, "posts"), {
+        boardId,
+        title: p.title || "",
+        content: p.content || "",
+        author: "",
+        imageUrls: newUrls,
+        imageThumbUrls: newThumbs,
+        imageDeleteUrls: newDeleteUrls,
+        views: p.views || 0,
+        isPinned: !!p.isPinned,
+        visibility: "public",
+        isPrivate: false,
+        createdAt: p.createdAt ? new Date(p.createdAt) : serverTimestamp(),
+        imagesResized: true,
+      });
+      postsCreated++;
+    });
+
+    invalidateBoardCache();
+    statusEl.textContent = `가져오기 완료! 게시글 ${postsCreated}개 추가 · 사진 ${imagesUploaded}개 업로드 · ${imagesFailed}개 실패`;
+    el("offlineImportInput").value = "";
+    el("offlineImportFileName").textContent = "";
+    el("offlineImportBtn").disabled = true;
+  } catch (e) {
+    statusEl.textContent = "가져오기 실패: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ---------- 유틸 ----------
 // 이미지를 <span class="img-wrap">로 감싸서 로딩중 스피너 → 로드완료/에러 상태를 자동으로 표시
 function imgWrap(src, opts = {}) {
