@@ -865,7 +865,7 @@ function nextOrder() {
 
 // ---------- 사이트 설정 (프로필 카드 문구) ----------
 // config/site 문서는 관리자 확인용 adminUid도 같이 들어있는 문서라, merge:true로 필드만 덧붙여요.
-let siteConfig = { siteAvatar: "🐦", siteName: "+구구+", siteTagline: "개인 팬 아카이브 홈페이지" };
+let siteConfig = { siteAvatar: "🐦", siteName: "+구구+", siteTagline: "개인 팬 아카이브 홈페이지", adminNickname: "" };
 
 async function loadSiteConfig() {
   try {
@@ -876,6 +876,7 @@ async function loadSiteConfig() {
         siteAvatar: d.siteAvatar || siteConfig.siteAvatar,
         siteName: d.siteName || siteConfig.siteName,
         siteTagline: d.siteTagline || siteConfig.siteTagline,
+        adminNickname: d.adminNickname || siteConfig.adminNickname,
       };
     }
   } catch (e) {
@@ -1780,6 +1781,7 @@ async function openPost(postId, opts = {}) {
 // ---------- 댓글 ----------
 async function getMyNickname() {
   if (!currentUser) return "";
+  if (isAdmin) return siteConfig.adminNickname || emailToId(currentUser.email);
   try {
     const snap = await getDoc(doc(db, "members", currentUser.uid));
     if (snap.exists() && snap.data().nickname) return snap.data().nickname;
@@ -1869,7 +1871,15 @@ el("nicknameBtn").addEventListener("click", async () => {
   if (!trimmed) { alert("닉네임을 입력해주세요."); return; }
   if (trimmed.length > 20) { alert("닉네임은 20자 이내로 입력해주세요."); return; }
   try {
-    await updateDoc(doc(db, "members", currentUser.uid), { nickname: trimmed });
+    if (isAdmin) {
+      // 관리자는 members 문서가 아예 없어서(회원가입으로 만든 계정이 아니라서) 거기 저장할 수 없어요.
+      // 대신 관리자 정보가 있는 config/site 문서에 저장해요.
+      await updateDoc(doc(db, "config", "site"), { adminNickname: trimmed });
+      siteConfig.adminNickname = trimmed;
+    } else {
+      // setDoc(merge)라서 members 문서가 있으면 그 부분만 수정, 혹시 없으면 새로 만듦
+      await setDoc(doc(db, "members", currentUser.uid), { nickname: trimmed }, { merge: true });
+    }
     alert("닉네임을 저장했어요!");
   } catch (err) {
     alert("저장 실패: " + err.message);
