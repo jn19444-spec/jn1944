@@ -1804,9 +1804,14 @@ async function loadComments(postId) {
   `;
 
   try {
-    const q = query(collection(db, "comments"), where("postId", "==", postId), orderBy("createdAt", "asc"));
+    const q = query(collection(db, "comments"), where("postId", "==", postId));
     const snap = await getDocs(q);
-    renderCommentsList(snap.docs, postId);
+    const sortedDocs = snap.docs.slice().sort((a, b) => {
+      const ta = a.data().createdAt ? a.data().createdAt.toMillis() : 0;
+      const tb = b.data().createdAt ? b.data().createdAt.toMillis() : 0;
+      return ta - tb; // 오래된 댓글이 위로
+    });
+    renderCommentsList(sortedDocs, postId);
   } catch (e) {
     el("commentsList").innerHTML = `<p class="hint-text">댓글을 불러오지 못했어요.</p>`;
   }
