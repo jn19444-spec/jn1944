@@ -1948,6 +1948,36 @@ el("manageAddDividerBtn").addEventListener("click", async () => {
   renderManageList();
 });
 
+let dragSrcIdx = null;
+
+// 관리 목록 여러 곳(게시판/상단메뉴/음악)에서 공통으로 쓰는 드래그 정렬 헬퍼.
+// rowEl에 draggable을 붙이고, 다른 행 위에 놓였을 때 onDrop(원래idx, 놓인idx)를 호출해요.
+function attachDragReorder(rowEl, idx, listEl, onDrop) {
+  rowEl.draggable = true;
+  rowEl.addEventListener("dragstart", (e) => {
+    dragSrcIdx = idx;
+    rowEl.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", String(idx)); } catch (err) {}
+  });
+  rowEl.addEventListener("dragend", () => {
+    dragSrcIdx = null;
+    listEl.querySelectorAll(".manage-row").forEach(r => r.classList.remove("dragging", "drag-over"));
+  });
+  rowEl.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    rowEl.classList.add("drag-over");
+  });
+  rowEl.addEventListener("dragleave", () => rowEl.classList.remove("drag-over"));
+  rowEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    rowEl.classList.remove("drag-over");
+    if (dragSrcIdx === null || dragSrcIdx === idx) return;
+    onDrop(dragSrcIdx, idx);
+  });
+}
+
 function renderManageList() {
   const listEl = el("manageList");
   listEl.innerHTML = "";
@@ -1960,6 +1990,7 @@ function renderManageList() {
       visibilityIcon(row) + row.name;
 
     rowDiv.innerHTML = `
+      <span class="drag-handle" title="끌어서 순서 바꾸기">⠿</span>
       <span class="manage-row-label">${escapeHtml(label)}</span>
       <span class="manage-row-actions">
         ${row.type === "board" ? `<select class="admin-select" data-act="visibility-select">
@@ -1980,8 +2011,24 @@ function renderManageList() {
       sel.value = getVisibility(row);
       sel.addEventListener("change", () => changeBoardVisibility(row, sel.value, sel));
     }
+
+    attachDragReorder(rowDiv, idx, listEl, (fromIdx, toIdx) => {
+      const reordered = boardRows.slice();
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      reorderAllRows(reordered);
+    });
+
     listEl.appendChild(rowDiv);
   });
+}
+
+// 드래그로 순서를 바꾸면, 새로 배치된 순서 그대로 전부 새 order 값을 매겨서 저장해요
+// (▲▼는 두 개끼리만 값을 맞바꾸지만, 드래그는 여러 칸을 한 번에 옮기는 거라 전체를 다시 매겨야 해요).
+async function reorderAllRows(newRows) {
+  await Promise.all(newRows.map((row, i) => updateDoc(doc(db, "boards", row.id), { order: (i + 1) * 10 })));
+  await loadBoardConfig();
+  renderManageList();
 }
 
 async function changeBoardVisibility(row, newVal, selEl) {
@@ -2118,6 +2165,7 @@ function renderTopMenuAdminList() {
     const hasUrl = !!(item.url && item.url.trim());
     const label = (hasUrl ? "🔗 " : "📝 ") + item.name;
     row.innerHTML = `
+      <span class="drag-handle" title="끌어서 순서 바꾸기">⠿</span>
       <span class="manage-row-label">${escapeHtml(label)}</span>
       <span class="manage-row-actions">
         <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
@@ -2130,8 +2178,22 @@ function renderTopMenuAdminList() {
     row.querySelector('[data-act="down"]').addEventListener("click", () => moveTopMenu(idx, 1));
     row.querySelector('[data-act="edit"]').addEventListener("click", () => startEditTopMenu(item));
     row.querySelector('[data-act="del"]').addEventListener("click", () => deleteTopMenu(item));
+
+    attachDragReorder(row, idx, listEl, (fromIdx, toIdx) => {
+      const reordered = topMenuItems.slice();
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      reorderAllTopMenus(reordered);
+    });
+
     listEl.appendChild(row);
   });
+}
+
+async function reorderAllTopMenus(newItems) {
+  await Promise.all(newItems.map((item, i) => updateDoc(doc(db, "topMenus", item.id), { order: (i + 1) * 10 })));
+  await loadTopMenu();
+  renderTopMenuAdminList();
 }
 
 async function moveTopMenu(idx, dir) {
@@ -2315,6 +2377,7 @@ function renderMusicAdminList() {
     row.className = "manage-row";
     const label = `🎵 ${escapeHtml(track.title)}` + (track.artist ? ` <span style="color:var(--text-dim);">- ${escapeHtml(track.artist)}</span>` : "");
     row.innerHTML = `
+      <span class="drag-handle" title="끌어서 순서 바꾸기">⠿</span>
       <span class="manage-row-label">${label}</span>
       <span class="manage-row-actions">
         <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
@@ -2327,8 +2390,23 @@ function renderMusicAdminList() {
     row.querySelector('[data-act="down"]').addEventListener("click", () => moveMusicTrack(idx, 1));
     row.querySelector('[data-act="edit"]').addEventListener("click", () => startEditMusic(track));
     row.querySelector('[data-act="del"]').addEventListener("click", () => deleteMusicTrack(track));
+
+    attachDragReorder(row, idx, listEl, (fromIdx, toIdx) => {
+      const reordered = musicTracks.slice();
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      reorderAllMusicTracks(reordered);
+    });
+
     listEl.appendChild(row);
   });
+}
+
+async function reorderAllMusicTracks(newTracks) {
+  await Promise.all(newTracks.map((t, i) => updateDoc(doc(db, "musicTracks", t.id), { order: (i + 1) * 10 })));
+  await loadMusicTracks();
+  renderMusicAdminList();
+  renderMusicPlaylist();
 }
 
 async function moveMusicTrack(idx, dir) {
