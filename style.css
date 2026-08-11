@@ -54,11 +54,9 @@ body{
 
 /* ---------- 상단 메뉴 바 ---------- */
 .top-menu-bar{
-  display:flex; gap:4px; align-items:center;
+  display:flex; flex-wrap:wrap; gap:4px; align-items:center;
   max-width:1160px; margin:0 auto; padding:0 20px 12px;
-  overflow-x:auto; overflow-y:visible; scrollbar-width:none;
 }
-.top-menu-bar::-webkit-scrollbar{ display:none; }
 .top-menu-bar.hidden{ display:none; }
 .top-menu-link{
   flex-shrink:0;
