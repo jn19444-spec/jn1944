@@ -15,9 +15,9 @@ const IMG_CACHE_MAX = 500; // 이 개수를 넘으면 오래 전에 저장된 �
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./style.css?v=20260809b",
-  "./app.js?v=20260809b",
-  "./firebase-config.js?v=20260809b",
+  "./style.css?v=20260811a",
+  "./app.js?v=20260811a",
+  "./firebase-config.js?v=20260811a",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",

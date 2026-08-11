@@ -1441,6 +1441,14 @@ el("postImageFiles").addEventListener("change", async (e) => {
 });
 
 // ---------- 글쓰기 / 수정 ----------
+// iframe 코드를 통째로 붙여넣었으면 그 안의 src만 뽑아내고, 그냥 링크만 붙여넣었으면 그대로 씀
+function extractEmbedUrl(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "";
+  const m = trimmed.match(/src\s*=\s*["']([^"']+)["']/i);
+  return m ? m[1] : trimmed;
+}
+
 el("postForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!isAdmin) return;
@@ -1453,9 +1461,10 @@ el("postForm").addEventListener("submit", async (e) => {
     const imageUrls = selectedImageUrls.slice();
     const imageThumbUrls = selectedImageThumbUrls.slice();
     const imageDeleteUrls = selectedImageDeleteUrls.slice();
+    const embedUrl = extractEmbedUrl(el("postEmbedInput").value);
 
     if (editingPostId) {
-      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls });
+      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls, embedUrl });
       invalidateBoardCache(editingPostBoardId);
       clearDraft();
       const idToReopen = editingPostId;
@@ -1468,7 +1477,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
     await addDoc(collection(db, "posts"), {
       boardId: currentBoardId,
-      title, content, imageUrls, imageThumbUrls, imageDeleteUrls,
+      title, content, imageUrls, imageThumbUrls, imageDeleteUrls, embedUrl,
       author: currentUser.email.split("@")[0],
       createdAt: serverTimestamp(),
       views: 0,
@@ -1706,6 +1715,7 @@ async function openPost(postId, opts = {}) {
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}
       ${currentUser ? `<button id="favToggleBtn" class="fav-toggle-btn${favoritePostIds.has(postId) ? " active" : ""}" title="즐겨찾기">${favoritePostIds.has(postId) ? "⭐" : "☆"}</button>` : ""}
     </div>
+    ${p.embedUrl ? `<div class="embed-wrap"><iframe src="${escapeHtml(p.embedUrl)}" allow="encrypted-media; accelerometer; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` : ""}
     <div class="content-text">${renderContentWithImages(p, images)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="pinPostBtn" class="btn btn-ghost">${p.isPinned ? "📌 고정 해제" : "📌 고정하기"}</button>
@@ -1762,6 +1772,7 @@ async function openPost(postId, opts = {}) {
       editingPostBoardId = p.boardId;
       el("postTitle").value = p.title || "";
       el("postContent").value = p.content || "";
+      el("postEmbedInput").value = p.embedUrl || "";
       selectedImageUrls = images.slice();
       selectedImageThumbUrls = getThumbs(p).slice();
       // 예전 글은 imageDeleteUrls가 없을 수 있어서, 사진 개수에 맞춰 null로 채워둬요.
@@ -3516,6 +3527,45 @@ showHomeDashboard();
 loadSiteConfig();
 loadTopMenu();
 initMusicPlayer();
+
+// ---------- 실시간 방송 상태 ----------
+// SOOP이 공식적으로 제공하는 API는 아니고, 플레이어가 내부적으로 쓰는 주소를 이용한 거라
+// 브라우저 정책(CORS)에 막혀서 안 될 수도 있어요. 그때는 뱃지가 그냥 안 보이게만 처리돼요.
+const SOOP_STREAMER_ID = "jin1944"; // 방송 아이디가 다르면 이 값만 바꾸면 돼요
+
+async function checkLiveStatus() {
+  try {
+    const res = await fetch("https://live.sooplive.co.kr/afreeca/player_live_api.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `bid=${encodeURIComponent(SOOP_STREAMER_ID)}`,
+    });
+    const data = await res.json();
+    const isLive = !!(data && data.CHANNEL && Number(data.CHANNEL.RESULT) === 1);
+    renderLiveStatus(isLive);
+  } catch (e) {
+    el("liveStatusBadge").classList.add("hidden"); // 확인 실패(CORS 등)하면 그냥 숨김
+  }
+}
+
+function renderLiveStatus(isLive) {
+  const badge = el("liveStatusBadge");
+  badge.classList.remove("hidden");
+  if (isLive) {
+    badge.textContent = "🔴 방송중";
+    badge.className = "live-badge live-on";
+    badge.onclick = () => window.open(`https://ch.sooplive.co.kr/${SOOP_STREAMER_ID}`, "_blank");
+    badge.title = "클릭하면 방송으로 이동";
+  } else {
+    badge.textContent = "⚫ 방송 종료";
+    badge.className = "live-badge live-off";
+    badge.onclick = null;
+    badge.title = "";
+  }
+}
+
+checkLiveStatus();
+setInterval(checkLiveStatus, 60000); // 1분마다 자동 갱신
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {

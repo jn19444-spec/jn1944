@@ -17,7 +17,7 @@
 <link rel="dns-prefetch" href="https://i.ibb.co">
 <link rel="preconnect" href="https://ibb.co">
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260809b">
+<link rel="stylesheet" href="style.css?v=20260811a">
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -27,6 +27,7 @@
   <div class="topbar-inner">
     <div class="brand">
       <button id="homeBtn" class="brand-name-btn">+구구+</button>
+      <span id="liveStatusBadge" class="live-badge hidden"></span>
     </div>
     <div class="topbar-actions">
       <div class="notice-menu-wrap">
@@ -105,6 +106,8 @@
           <span id="imageUploadStatus" class="image-upload-status hidden"></span>
           <div id="imagePreviewList" class="image-preview-list"></div>
         </div>
+        <label class="field-label" for="postEmbedInput">🎬 영상 임베드 (선택, VOD/호버방셀 등의 &lt;iframe&gt; 코드나 링크를 그대로 붙여넣으세요)</label>
+        <textarea id="postEmbedInput" placeholder='예: <iframe src="https://..."></iframe> 또는 그냥 링크만' rows="2"></textarea>
         <div class="form-actions">
           <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
           <button type="submit" class="btn btn-primary">등록하기</button>
@@ -427,8 +430,8 @@
 </div>
 <audio id="musicAudio" preload="metadata"></audio>
 
-<script type="module" src="firebase-config.js?v=20260809b"></script>
-<script type="module" src="app.js?v=20260809b"></script>
+<script type="module" src="firebase-config.js?v=20260811a"></script>
+<script type="module" src="app.js?v=20260811a"></script>
 <script>
   // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
   // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
