@@ -151,6 +151,7 @@
         <button class="admin-tab active" data-tab="members">👥 회원 관리 <span id="pendingBadge" class="pending-badge hidden"></span></button>
         <button class="admin-tab" data-tab="posts">✅ 게시글 관리</button>
         <button class="admin-tab" data-tab="boards">📄 게시판 관리</button>
+        <button class="admin-tab" data-tab="tiers">👑 회원 등급</button>
         <button class="admin-tab" data-tab="topmenu">🔗 상단 메뉴</button>
         <button class="admin-tab" data-tab="music">🎵 음악 관리</button>
         <button class="admin-tab" data-tab="stats">📊 통계</button>
@@ -217,11 +218,26 @@
         <div id="manageList" class="manage-list"></div>
       </div>
 
+      <!-- 회원 등급 -->
+      <div id="adminTabTiers" class="admin-panel hidden">
+        <p class="hint-text">등급을 만들면, "👥 회원공개" 게시판마다 "이 등급 이상만 볼 수 있음"을 정할 수 있어요. 회원마다 등급은 "👥 회원 관리" 탭에서 배정해요. 등급이 없으면 예전처럼 로그인만 하면 누구나 볼 수 있어요.</p>
+        <div class="manage-add-row">
+          <input type="text" id="memberTierNameInput" placeholder="등급 이름 입력 (예: 우수회원)">
+          <div class="manage-add-buttons">
+            <button id="memberTierAddBtn" class="btn btn-ghost">👑 등급 추가</button>
+          </div>
+        </div>
+        <div id="memberTiersList" class="manage-list"></div>
+      </div>
+
       <!-- 상단 메뉴 관리 -->
       <div id="adminTabTopmenu" class="admin-panel hidden">
-        <p class="hint-text">상단바에 메뉴 버튼을 추가할 수 있어요. <b>링크를 입력하면</b> 클릭 시 그 주소로 바로 이동하고, <b>링크를 비워두면</b> 아래에 적은 내용이 게시글처럼 팝업으로 열려요.</p>
+        <p class="hint-text">상단바에 메뉴 버튼을 추가할 수 있어요. <b>링크를 입력하면</b> 클릭 시 그 주소로 바로 이동하고, <b>링크를 비워두면</b> 아래에 적은 내용이 게시글처럼 팝업으로 열려요. <b>상위 메뉴</b>를 고르면 그 메뉴에 마우스를 올렸을 때(또는 눌렀을 때) 드롭다운으로 나와요.</p>
         <div class="manage-add-row">
           <input type="text" id="topMenuNameInput" placeholder="메뉴 이름 (예: 공식 트위터, 이벤트 안내)">
+          <select id="topMenuParentSelect" class="admin-select">
+            <option value="">최상위 메뉴</option>
+          </select>
           <input type="text" id="topMenuUrlInput" placeholder="링크 URL (선택 - 비워두면 아래 내용이 표시돼요)">
           <textarea id="topMenuContentInput" placeholder="링크가 없을 때 보여줄 내용 (선택)" rows="3"></textarea>
           <div class="image-upload-box">

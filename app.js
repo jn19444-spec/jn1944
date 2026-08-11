@@ -61,6 +61,8 @@ function emailToId(email) {
 let currentUser = null;
 let isAdmin = false;
 let canViewPrivate = false; // 회원이 비공개 게시판 열람 권한을 받았는지
+let memberTiers = []; // Firestore "memberTiers" 컬렉션 (회원 등급 목록, order 오름차순 = 낮은 등급부터)
+let myTierId = null; // 지금 로그인한 회원에게 배정된 등급 id (없으면 null = 기본 등급)
 let favoritePostIds = new Set(); // 로그인한 사람이 즐겨찾기한 게시글 id들(본인만 봄)
 let currentBoardId = null;
 let currentBoard = null;
@@ -103,8 +105,30 @@ function getVisibility(row) {
 function canViewBoard(row) {
   const vis = getVisibility(row);
   if (vis === "private") return isAdmin || canViewPrivate;
-  if (vis === "members") return isAdmin || !!currentUser; // 로그인만 하면(승인된 회원) 열람 가능
+  if (vis === "members") {
+    if (isAdmin) return true;
+    if (!currentUser) return false;
+    return tierOrderOf(myTierId) >= tierOrderOf(row.minTierId);
+  }
   return true; // public
+}
+function tierOrderOf(tierId) {
+  if (!tierId) return 0;
+  const t = memberTiers.find(x => x.id === tierId);
+  return t ? (t.order || 0) : 0;
+}
+function tierName(tierId) {
+  if (!tierId) return "기본 등급";
+  const t = memberTiers.find(x => x.id === tierId);
+  return t ? t.name : "기본 등급";
+}
+async function loadMemberTiers() {
+  try {
+    const snap = await getDocs(query(collection(db, "memberTiers"), orderBy("order", "asc")));
+    memberTiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    memberTiers = [];
+  }
 }
 function visibilityIcon(row) {
   const vis = getVisibility(row);
@@ -337,6 +361,7 @@ onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   isAdmin = false;
   canViewPrivate = false;
+  myTierId = null;
 
   if (user) {
     // 관리자 확인 (사이트에 딱 한 명, config/site 문서에 저장됨)
@@ -366,6 +391,7 @@ onAuthStateChanged(auth, async (user) => {
           return;
         }
         canViewPrivate = !!data.canViewPrivate;
+        myTierId = data.tierId || null;
       } else {
         await signOut(auth);
         return;
@@ -507,6 +533,7 @@ const ADMIN_TAB_LOADERS = {
   members: loadMemberList,
   posts: loadPostAdminList,
   boards: renderManageList,
+  tiers: loadMemberTiersAdminTab,
   topmenu: loadTopMenuAdminTab,
   music: loadMusicAdminTab,
   stats: loadStats,
@@ -691,6 +718,7 @@ async function prewarmImageCache() {
 async function loadMemberList() {
   const listEl = el("memberList");
   listEl.innerHTML = "불러오는 중...";
+  if (!memberTiers.length) await loadMemberTiers();
   const snap = await getDocs(collection(db, "members"));
   allMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   updatePendingBadge(allMembers.filter(m => m.approved === false).length);
@@ -753,10 +781,21 @@ function renderMemberList() {
         <label class="checkbox-label">
           <input type="checkbox" data-role="private" ${m.canViewPrivate ? "checked" : ""}> 비공개 열람
         </label>
+        <select class="admin-select" data-role="tier" style="width:auto;"></select>
         ${approved ? `<button data-act="block">차단</button>` : `<button data-act="approve">승인</button>`}
         <button data-act="delete" class="danger">삭제</button>
       </span>
     `;
+
+    const tierSel = row.querySelector('[data-role="tier"]');
+    tierSel.innerHTML = `<option value="">기본 등급</option>` +
+      memberTiers.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+    tierSel.value = m.tierId || "";
+    tierSel.addEventListener("change", async () => {
+      await updateDoc(doc(db, "members", m.id), { tierId: tierSel.value || null });
+      const found = allMembers.find(x => x.id === m.id);
+      if (found) found.tierId = tierSel.value || null;
+    });
 
     row.querySelector('[data-role="private"]').addEventListener("change", async (e) => {
       await updateDoc(doc(db, "members", m.id), { canViewPrivate: e.target.checked });
@@ -791,7 +830,77 @@ function renderMemberList() {
   });
 }
 
-// 관리자 메뉴 버튼 / 회원 관리 버튼에 승인 대기 인원 수 뱃지를 표시
+// ---------- 회원 등급 관리 ----------
+function nextTierOrder() {
+  if (!memberTiers.length) return 10;
+  return Math.max(...memberTiers.map(t => t.order || 0)) + 10;
+}
+
+async function loadMemberTiersAdminTab() {
+  await loadMemberTiers();
+  renderMemberTiersAdminList();
+}
+
+function renderMemberTiersAdminList() {
+  const listEl = el("memberTiersList");
+  if (!listEl) return;
+  if (!memberTiers.length) {
+    listEl.innerHTML = `<p class="hint-text">아직 만든 등급이 없어요. 등급을 안 만들면 회원공개 게시판은 예전처럼 "로그인만 하면 누구나" 볼 수 있어요.</p>`;
+    return;
+  }
+  listEl.innerHTML = "";
+  memberTiers.forEach((tier, idx) => {
+    const row = document.createElement("div");
+    row.className = "manage-row";
+    row.innerHTML = `
+      <span class="manage-row-label">👑 ${escapeHtml(tier.name)}</span>
+      <span class="manage-row-actions">
+        <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
+        <button data-act="down" ${idx === memberTiers.length - 1 ? "disabled" : ""}>▼</button>
+        <button data-act="rename">이름 변경</button>
+        <button data-act="del" class="danger">삭제</button>
+      </span>
+    `;
+    row.querySelector('[data-act="up"]').addEventListener("click", () => moveMemberTier(idx, -1));
+    row.querySelector('[data-act="down"]').addEventListener("click", () => moveMemberTier(idx, 1));
+    row.querySelector('[data-act="rename"]').addEventListener("click", async () => {
+      const next = prompt("등급 이름을 입력해주세요", tier.name);
+      if (next === null) return;
+      const trimmed = next.trim();
+      if (!trimmed) return;
+      await updateDoc(doc(db, "memberTiers", tier.id), { name: trimmed });
+      await loadMemberTiersAdminTab();
+    });
+    row.querySelector('[data-act="del"]').addEventListener("click", async () => {
+      if (!confirm(`"${tier.name}" 등급을 삭제할까요?\n이 등급을 쓰던 회원/게시판은 자동으로 기본 등급 취급이 돼요.`)) return;
+      await deleteDoc(doc(db, "memberTiers", tier.id));
+      await loadMemberTiersAdminTab();
+    });
+    listEl.appendChild(row);
+  });
+}
+
+async function moveMemberTier(idx, dir) {
+  const otherIdx = idx + dir;
+  if (otherIdx < 0 || otherIdx >= memberTiers.length) return;
+  const a = memberTiers[idx], b = memberTiers[otherIdx];
+  await Promise.all([
+    updateDoc(doc(db, "memberTiers", a.id), { order: b.order }),
+    updateDoc(doc(db, "memberTiers", b.id), { order: a.order }),
+  ]);
+  await loadMemberTiersAdminTab();
+}
+
+el("memberTierAddBtn")?.addEventListener("click", async () => {
+  const input = el("memberTierNameInput");
+  const name = input.value.trim();
+  if (!name) { alert("등급 이름을 입력해주세요."); return; }
+  await addDoc(collection(db, "memberTiers"), { name, order: nextTierOrder() });
+  input.value = "";
+  await loadMemberTiersAdminTab();
+});
+
+
 async function refreshPendingBadge() {
   if (!isAdmin) { updatePendingBadge(0); return; }
   try {
@@ -2140,6 +2249,7 @@ function renderManageList() {
             <option value="members">👥 회원공개</option>
             <option value="private">🔒 비공개</option>
           </select>` : ""}
+        ${row.type === "board" && getVisibility(row) === "members" ? `<select class="admin-select" data-act="tier-select" title="이 등급 이상만 볼 수 있어요"></select>` : ""}
         <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
         <button data-act="down" ${idx === boardRows.length - 1 ? "disabled" : ""}>▼</button>
         <button data-act="del" class="danger">삭제</button>
@@ -2152,6 +2262,18 @@ function renderManageList() {
       const sel = rowDiv.querySelector('[data-act="visibility-select"]');
       sel.value = getVisibility(row);
       sel.addEventListener("change", () => changeBoardVisibility(row, sel.value, sel));
+    }
+    const tierSel = rowDiv.querySelector('[data-act="tier-select"]');
+    if (tierSel) {
+      tierSel.innerHTML = `<option value="">제한없음(기본 등급)</option>` +
+        memberTiers.map(t => `<option value="${t.id}">${escapeHtml(t.name)} 이상</option>`).join("");
+      tierSel.value = row.minTierId || "";
+      tierSel.addEventListener("change", async () => {
+        await updateDoc(doc(db, "boards", row.id), { minTierId: tierSel.value || null });
+        const found = boardRows.find(r => r.id === row.id);
+        if (found) found.minTierId = tierSel.value || null;
+        invalidateBoardCache(row.id);
+      });
     }
 
     attachDragReorder(rowDiv, idx, listEl, (fromIdx, toIdx) => {
@@ -2254,6 +2376,14 @@ async function loadTopMenuAdminTab() {
 }
 
 // 헤더 아래 바로가기 바 (모든 방문자에게 보임)
+function topMenuLinkHtml(item, extraClass) {
+  const hasUrl = !!(item.url && item.url.trim());
+  const cls = "top-menu-link" + (extraClass ? " " + extraClass : "");
+  return hasUrl
+    ? `<a class="${cls}" href="${escapeHtml(normalizeUrl(item.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.name)}</a>`
+    : `<button type="button" class="${cls}" data-id="${item.id}">${escapeHtml(item.name)}</button>`;
+}
+
 function renderTopMenuBar() {
   const bar = el("topMenuBar");
   if (!topMenuItems.length) {
@@ -2262,14 +2392,35 @@ function renderTopMenuBar() {
     return;
   }
   bar.classList.remove("hidden");
-  bar.innerHTML = topMenuItems.map(item => {
-    const hasUrl = !!(item.url && item.url.trim());
-    return hasUrl
-      ? `<a class="top-menu-link" href="${escapeHtml(normalizeUrl(item.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.name)}</a>`
-      : `<button type="button" class="top-menu-link" data-id="${item.id}">${escapeHtml(item.name)}</button>`;
+  const topLevel = topMenuItems.filter(t => !t.parentId);
+  bar.innerHTML = topLevel.map(item => {
+    const children = topMenuItems.filter(c => c.parentId === item.id);
+    if (!children.length) return topMenuLinkHtml(item);
+    return `
+      <div class="top-menu-group">
+        <button type="button" class="top-menu-link top-menu-group-btn">${escapeHtml(item.name)} <span class="top-menu-caret">▾</span></button>
+        <div class="top-menu-dropdown">
+          ${children.map(c => topMenuLinkHtml(c, "top-menu-dropdown-link")).join("")}
+        </div>
+      </div>
+    `;
   }).join("");
-  bar.querySelectorAll("button.top-menu-link").forEach(btn => {
+
+  bar.querySelectorAll("button.top-menu-link[data-id]").forEach(btn => {
     btn.addEventListener("click", () => openTopMenuDetail(btn.dataset.id));
+  });
+  // 그룹 버튼: 데스크탑은 CSS hover로 열리고, 터치기기는 눌러서 열고 닫을 수 있게 함
+  bar.querySelectorAll(".top-menu-group-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const group = btn.closest(".top-menu-group");
+      const wasOpen = group.classList.contains("open");
+      bar.querySelectorAll(".top-menu-group.open").forEach(g => g.classList.remove("open"));
+      if (!wasOpen) group.classList.add("open");
+    });
+  });
+  document.addEventListener("click", () => {
+    bar.querySelectorAll(".top-menu-group.open").forEach(g => g.classList.remove("open"));
   });
 }
 
@@ -2299,13 +2450,21 @@ el("topMenuDetailModal").addEventListener("click", (e) => {
 
 // 관리자 메뉴 - 상단 메뉴 탭의 목록
 function renderTopMenuAdminList() {
+  // 상위 메뉴 선택창: 최상위(부모 없는) 항목만 골라줄 수 있어요(2단계까지만 지원)
+  const parentSel = el("topMenuParentSelect");
+  const prevValue = parentSel.value;
+  parentSel.innerHTML = `<option value="">최상위 메뉴</option>` +
+    topMenuItems.filter(t => !t.parentId && t.id !== editingTopMenuId).map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  parentSel.value = prevValue;
+
   const listEl = el("topMenuList");
   listEl.innerHTML = "";
   topMenuItems.forEach((item, idx) => {
     const row = document.createElement("div");
     row.className = "manage-row";
     const hasUrl = !!(item.url && item.url.trim());
-    const label = (hasUrl ? "🔗 " : "📝 ") + item.name;
+    const parent = item.parentId ? topMenuItems.find(t => t.id === item.parentId) : null;
+    const label = (parent ? `　└ ` : "") + (hasUrl ? "🔗 " : "📝 ") + item.name;
     row.innerHTML = `
       <span class="drag-handle" title="끌어서 순서 바꾸기">⠿</span>
       <span class="manage-row-label">${escapeHtml(label)}</span>
@@ -2351,7 +2510,10 @@ async function moveTopMenu(idx, dir) {
 }
 
 async function deleteTopMenu(item) {
-  if (!confirm(`"${item.name}" 메뉴를 삭제할까요?`)) return;
+  const children = topMenuItems.filter(c => c.parentId === item.id);
+  const extra = children.length ? `\n(하위 메뉴 ${children.length}개는 최상위 메뉴로 올라가요.)` : "";
+  if (!confirm(`"${item.name}" 메뉴를 삭제할까요?${extra}`)) return;
+  await Promise.all(children.map(c => updateDoc(doc(db, "topMenus", c.id), { parentId: null })));
   await deleteDoc(doc(db, "topMenus", item.id));
   if (editingTopMenuId === item.id) cancelEditTopMenu();
   await loadTopMenu();
@@ -2361,6 +2523,7 @@ async function deleteTopMenu(item) {
 function startEditTopMenu(item) {
   editingTopMenuId = item.id;
   el("topMenuNameInput").value = item.name || "";
+  el("topMenuParentSelect").value = item.parentId || "";
   el("topMenuUrlInput").value = item.url || "";
   el("topMenuContentInput").value = item.content || "";
   topMenuImageUrls = getImages(item).slice();
@@ -2374,6 +2537,7 @@ function startEditTopMenu(item) {
 function cancelEditTopMenu() {
   editingTopMenuId = null;
   el("topMenuNameInput").value = "";
+  el("topMenuParentSelect").value = "";
   el("topMenuUrlInput").value = "";
   el("topMenuContentInput").value = "";
   topMenuImageUrls = [];
@@ -2440,18 +2604,20 @@ el("topMenuSaveBtn").addEventListener("click", async () => {
   if (!isAdmin) return;
   const name = el("topMenuNameInput").value.trim();
   if (!name) { alert("메뉴 이름을 입력해주세요."); return; }
+  const parentId = el("topMenuParentSelect").value || null;
   const url = el("topMenuUrlInput").value.trim();
   const content = el("topMenuContentInput").value.trim();
   const imageUrls = topMenuImageUrls.slice();
   const imageThumbUrls = topMenuImageThumbUrls.slice();
   const btn = el("topMenuSaveBtn");
   if (btn.disabled) return;
+  if (parentId && editingTopMenuId && parentId === editingTopMenuId) { alert("메뉴는 자기 자신을 상위 메뉴로 가질 수 없어요."); return; }
   btn.disabled = true;
   try {
     if (editingTopMenuId) {
-      await updateDoc(doc(db, "topMenus", editingTopMenuId), { name, url, content, imageUrls, imageThumbUrls });
+      await updateDoc(doc(db, "topMenus", editingTopMenuId), { name, parentId, url, content, imageUrls, imageThumbUrls });
     } else {
-      await addDoc(collection(db, "topMenus"), { name, url, content, imageUrls, imageThumbUrls, order: nextTopMenuOrder() });
+      await addDoc(collection(db, "topMenus"), { name, parentId, url, content, imageUrls, imageThumbUrls, order: nextTopMenuOrder() });
     }
     cancelEditTopMenu();
     await loadTopMenu();
@@ -3657,6 +3823,7 @@ renderBoardTree();
 showHomeDashboard();
 loadSiteConfig();
 loadTopMenu();
+loadMemberTiers().then(() => { if (boardRows.length) renderBoardTree(); });
 initMusicPlayer();
 loadLiveConfig();
 
