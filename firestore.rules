@@ -49,6 +49,12 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
+    // ---------- 생방송 설정 ----------
+    match /config/live {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ---------- 회원 ----------
     match /members/{uid} {
       allow read: if true;

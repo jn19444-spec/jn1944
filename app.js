@@ -511,6 +511,7 @@ const ADMIN_TAB_LOADERS = {
   music: loadMusicAdminTab,
   stats: loadStats,
   site: fillSiteSettingsForm,
+  live: fillLiveSettingsForm,
 };
 
 function activateAdminTab(tabName) {
@@ -912,6 +913,128 @@ el("siteSettingsSaveBtn").addEventListener("click", async () => {
     applySiteConfig();
     statusEl.textContent = "저장했어요 ✓";
     setTimeout(() => { statusEl.textContent = ""; }, 2500);
+  } catch (err) {
+    statusEl.textContent = "저장 실패: " + (err.code || err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- 생방송 설정 ----------
+// config/live 문서: manualOn(수동 on/off), bjId(자동감지용 SOOP 아이디), autoDetect(자동감지 시도 여부),
+// title/url(배너에 표시할 제목/링크), showTop/showSidebar(표시 위치)
+let liveConfig = {
+  manualOn: false, autoDetect: false, bjId: "", title: "", url: "",
+  showTop: true, showSidebar: true,
+};
+let liveCheckTimer = null;
+
+async function loadLiveConfig() {
+  try {
+    const snap = await getDoc(doc(db, "config", "live"));
+    if (snap.exists()) {
+      const d = snap.data();
+      liveConfig = {
+        manualOn: !!d.manualOn,
+        autoDetect: !!d.autoDetect,
+        bjId: d.bjId || "",
+        title: d.title || "",
+        url: d.url || "",
+        showTop: d.showTop !== false,
+        showSidebar: d.showSidebar !== false,
+      };
+    }
+  } catch (e) {
+    // 무시 - 라이브 배너는 안 보이는 상태로 유지
+  }
+  resolveLiveStatus();
+
+  // 자동 감지가 켜져있으면 5분마다 다시 확인해요 (사이트를 오래 열어놔도 라이브 상태가 갱신되게)
+  if (liveCheckTimer) clearInterval(liveCheckTimer);
+  if (liveConfig.autoDetect && liveConfig.bjId) {
+    liveCheckTimer = setInterval(resolveLiveStatus, 5 * 60 * 1000);
+  }
+}
+
+// 자동 감지가 켜져있으면 SOOP에서 방송 중인지 확인을 시도하고, 안 되면 수동 설정값을 그대로 써요.
+// (SOOP의 비공식 API라 브라우저에서 막혀있을 수도 있어요 - 그런 경우 조용히 실패하고 수동값으로 대체돼요)
+async function resolveLiveStatus() {
+  let isLive = liveConfig.manualOn;
+  let title = liveConfig.title;
+
+  if (liveConfig.autoDetect && liveConfig.bjId) {
+    const auto = await checkAutoLiveStatus(liveConfig.bjId);
+    if (auto !== null) {
+      isLive = auto.isLive;
+      if (auto.isLive && auto.title) title = auto.title;
+    }
+    // auto가 null이면(자동 감지 실패) 수동값(liveConfig.manualOn)을 그대로 유지
+  }
+
+  renderLiveDisplay(isLive, title);
+}
+
+async function checkAutoLiveStatus(bjId) {
+  try {
+    const res = await fetch(`https://bjapi.afreecatv.com/api/${encodeURIComponent(bjId)}/station`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    // SOOP 응답 구조가 바뀔 수 있어서 여러 가능한 위치를 다 확인해봐요.
+    const broad = data?.broad || data?.station?.broad || data?.BROAD || null;
+    const broadNo = broad?.broad_no || broad?.broadNo || data?.broad_no;
+    return { isLive: !!broadNo, title: broad?.broad_title || broad?.title || "" };
+  } catch (e) {
+    return null; // CORS로 막혔거나 실패 - 자동 감지 포기
+  }
+}
+
+function renderLiveDisplay(isLive, title) {
+  const topEl = el("liveTopBanner");
+  const sideEl = el("liveSidebarBadge");
+  const showTop = isLive && liveConfig.showTop;
+  const showSidebar = isLive && liveConfig.showSidebar;
+
+  topEl.classList.toggle("hidden", !showTop);
+  sideEl.classList.toggle("hidden", !showSidebar);
+  if (showTop || showSidebar) {
+    const text = title ? `지금 라이브 중 · ${title}` : "지금 라이브 중";
+    el("liveTopBannerText").textContent = text;
+    el("liveSidebarBadgeText").textContent = text;
+    topEl.href = liveConfig.url || "#";
+    sideEl.href = liveConfig.url || "#";
+  }
+}
+
+function fillLiveSettingsForm() {
+  el("liveManualToggle").checked = liveConfig.manualOn;
+  el("liveAutoDetectToggle").checked = liveConfig.autoDetect;
+  el("liveBjIdInput").value = liveConfig.bjId;
+  el("liveTitleInput").value = liveConfig.title;
+  el("liveUrlInput").value = liveConfig.url;
+  el("liveShowTopCheck").checked = liveConfig.showTop;
+  el("liveShowSidebarCheck").checked = liveConfig.showSidebar;
+  el("liveSettingsStatus").textContent = "";
+}
+
+el("liveSettingsSaveBtn").addEventListener("click", async () => {
+  const btn = el("liveSettingsSaveBtn");
+  const statusEl = el("liveSettingsStatus");
+  btn.disabled = true;
+  const newConfig = {
+    manualOn: el("liveManualToggle").checked,
+    autoDetect: el("liveAutoDetectToggle").checked,
+    bjId: el("liveBjIdInput").value.trim(),
+    title: el("liveTitleInput").value.trim(),
+    url: el("liveUrlInput").value.trim(),
+    showTop: el("liveShowTopCheck").checked,
+    showSidebar: el("liveShowSidebarCheck").checked,
+  };
+  try {
+    await setDoc(doc(db, "config", "live"), newConfig, { merge: true });
+    liveConfig = newConfig;
+    statusEl.textContent = "저장했어요 ✓";
+    setTimeout(() => { statusEl.textContent = ""; }, 2500);
+    loadLiveConfig(); // 저장한 값으로 배너도 바로 갱신 + 자동감지 타이머 재설정
   } catch (err) {
     statusEl.textContent = "저장 실패: " + (err.code || err.message);
   } finally {
@@ -1403,6 +1526,13 @@ function resetImageUploadUI() {
 
 el("postImageFiles").addEventListener("change", async (e) => {
   const files = Array.from(e.target.files || []);
+  await uploadFilesToPreview(files);
+  el("postImageFiles").value = "";
+});
+
+// 이미지 파일들을 ImgBB에 올리고 미리보기 목록에 추가해요.
+// 파일 선택(change)이랑 스크린샷 붙여넣기(paste) 둘 다 여기로 모아서 처리해요.
+async function uploadFilesToPreview(files) {
   if (!files.length) return;
   const statusEl = el("imageUploadStatus");
   statusEl.classList.remove("hidden", "error");
@@ -1437,18 +1567,22 @@ el("postImageFiles").addEventListener("change", async (e) => {
   renderImagePreviews();
 
   if (!hadError) statusEl.classList.add("hidden");
-  el("postImageFiles").value = "";
+}
+
+// ---------- 스크린샷/사진 붙여넣기(Ctrl+V) ----------
+// 글쓰기 칸에 커서를 두고 캡처한 화면을 그대로 붙여넣으면, 파일 선택 없이 바로 업로드돼요.
+el("postContent").addEventListener("paste", async (e) => {
+  const items = Array.from(e.clipboardData?.items || []);
+  const imageFiles = items
+    .filter(item => item.kind === "file" && item.type.startsWith("image/"))
+    .map(item => item.getAsFile())
+    .filter(Boolean);
+  if (!imageFiles.length) return; // 이미지가 아니면(일반 텍스트 붙여넣기 등) 원래 동작 그대로 둠
+  e.preventDefault(); // 이미지 데이터가 텍스트로 깨져서 붙는 걸 방지
+  await uploadFilesToPreview(imageFiles);
 });
 
 // ---------- 글쓰기 / 수정 ----------
-// iframe 코드를 통째로 붙여넣었으면 그 안의 src만 뽑아내고, 그냥 링크만 붙여넣었으면 그대로 씀
-function extractEmbedUrl(raw) {
-  const trimmed = (raw || "").trim();
-  if (!trimmed) return "";
-  const m = trimmed.match(/src\s*=\s*["']([^"']+)["']/i);
-  return m ? m[1] : trimmed;
-}
-
 el("postForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!isAdmin) return;
@@ -1461,10 +1595,9 @@ el("postForm").addEventListener("submit", async (e) => {
     const imageUrls = selectedImageUrls.slice();
     const imageThumbUrls = selectedImageThumbUrls.slice();
     const imageDeleteUrls = selectedImageDeleteUrls.slice();
-    const embedUrl = extractEmbedUrl(el("postEmbedInput").value);
 
     if (editingPostId) {
-      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls, embedUrl });
+      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls });
       invalidateBoardCache(editingPostBoardId);
       clearDraft();
       const idToReopen = editingPostId;
@@ -1477,7 +1610,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
     await addDoc(collection(db, "posts"), {
       boardId: currentBoardId,
-      title, content, imageUrls, imageThumbUrls, imageDeleteUrls, embedUrl,
+      title, content, imageUrls, imageThumbUrls, imageDeleteUrls,
       author: currentUser.email.split("@")[0],
       createdAt: serverTimestamp(),
       views: 0,
@@ -1715,7 +1848,6 @@ async function openPost(postId, opts = {}) {
     <div class="meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 조회 ${p.views || 0}
       ${currentUser ? `<button id="favToggleBtn" class="fav-toggle-btn${favoritePostIds.has(postId) ? " active" : ""}" title="즐겨찾기">${favoritePostIds.has(postId) ? "⭐" : "☆"}</button>` : ""}
     </div>
-    ${p.embedUrl ? `<div class="embed-wrap"><iframe src="${escapeHtml(p.embedUrl)}" allow="encrypted-media; accelerometer; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` : ""}
     <div class="content-text">${renderContentWithImages(p, images)}</div>
     ${isAdmin ? `<div class="admin-actions">
       <button id="pinPostBtn" class="btn btn-ghost">${p.isPinned ? "📌 고정 해제" : "📌 고정하기"}</button>
@@ -1772,7 +1904,6 @@ async function openPost(postId, opts = {}) {
       editingPostBoardId = p.boardId;
       el("postTitle").value = p.title || "";
       el("postContent").value = p.content || "";
-      el("postEmbedInput").value = p.embedUrl || "";
       selectedImageUrls = images.slice();
       selectedImageThumbUrls = getThumbs(p).slice();
       // 예전 글은 imageDeleteUrls가 없을 수 있어서, 사진 개수에 맞춰 null로 채워둬요.
@@ -3527,45 +3658,7 @@ showHomeDashboard();
 loadSiteConfig();
 loadTopMenu();
 initMusicPlayer();
-
-// ---------- 실시간 방송 상태 ----------
-// SOOP이 공식적으로 제공하는 API는 아니고, 플레이어가 내부적으로 쓰는 주소를 이용한 거라
-// 브라우저 정책(CORS)에 막혀서 안 될 수도 있어요. 그때는 뱃지가 그냥 안 보이게만 처리돼요.
-const SOOP_STREAMER_ID = "jin1944"; // 방송 아이디가 다르면 이 값만 바꾸면 돼요
-
-async function checkLiveStatus() {
-  try {
-    const res = await fetch("https://live.sooplive.co.kr/afreeca/player_live_api.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `bid=${encodeURIComponent(SOOP_STREAMER_ID)}`,
-    });
-    const data = await res.json();
-    const isLive = !!(data && data.CHANNEL && Number(data.CHANNEL.RESULT) === 1);
-    renderLiveStatus(isLive);
-  } catch (e) {
-    el("liveStatusBadge").classList.add("hidden"); // 확인 실패(CORS 등)하면 그냥 숨김
-  }
-}
-
-function renderLiveStatus(isLive) {
-  const badge = el("liveStatusBadge");
-  badge.classList.remove("hidden");
-  if (isLive) {
-    badge.textContent = "🔴 방송중";
-    badge.className = "live-badge live-on";
-    badge.onclick = () => window.open(`https://ch.sooplive.co.kr/${SOOP_STREAMER_ID}`, "_blank");
-    badge.title = "클릭하면 방송으로 이동";
-  } else {
-    badge.textContent = "⚫ 방송 종료";
-    badge.className = "live-badge live-off";
-    badge.onclick = null;
-    badge.title = "";
-  }
-}
-
-checkLiveStatus();
-setInterval(checkLiveStatus, 60000); // 1분마다 자동 갱신
+loadLiveConfig();
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {

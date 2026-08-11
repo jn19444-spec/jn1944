@@ -17,7 +17,7 @@
 <link rel="dns-prefetch" href="https://i.ibb.co">
 <link rel="preconnect" href="https://ibb.co">
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260811a">
+<link rel="stylesheet" href="style.css?v=20260809b">
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -27,7 +27,6 @@
   <div class="topbar-inner">
     <div class="brand">
       <button id="homeBtn" class="brand-name-btn">+구구+</button>
-      <span id="liveStatusBadge" class="live-badge hidden"></span>
     </div>
     <div class="topbar-actions">
       <div class="notice-menu-wrap">
@@ -45,6 +44,13 @@
   <nav id="topMenuBar" class="top-menu-bar hidden"></nav>
 </header>
 
+<!-- 생방송 중 상단 배너 (관리자가 켜거나, 자동 감지됐을 때만 보임) -->
+<a id="liveTopBanner" href="#" target="_blank" rel="noopener noreferrer" class="live-top-banner hidden">
+  <span class="live-dot"></span>
+  <span id="liveTopBannerText">지금 라이브 중</span>
+  <span class="live-arrow">방송 보러가기 →</span>
+</a>
+
 <div class="layout">
 
   <!-- 좌측 사이드바 -->
@@ -54,6 +60,12 @@
       <div class="profile-title" id="profileTitle">+구구+</div>
       <div class="profile-sub" id="profileSub">개인 팬 아카이브 홈페이지</div>
     </div>
+
+    <!-- 생방송 중 사이드바 배지 -->
+    <a id="liveSidebarBadge" href="#" target="_blank" rel="noopener noreferrer" class="live-sidebar-badge hidden">
+      <span class="live-dot"></span>
+      <span id="liveSidebarBadgeText">지금 라이브 중</span>
+    </a>
 
     <div class="search-box">
       <input type="text" id="searchInput" placeholder="제목/내용 검색">
@@ -106,8 +118,6 @@
           <span id="imageUploadStatus" class="image-upload-status hidden"></span>
           <div id="imagePreviewList" class="image-preview-list"></div>
         </div>
-        <label class="field-label" for="postEmbedInput">🎬 영상 임베드 (선택, VOD/호버방셀 등의 &lt;iframe&gt; 코드나 링크를 그대로 붙여넣으세요)</label>
-        <textarea id="postEmbedInput" placeholder='예: <iframe src="https://..."></iframe> 또는 그냥 링크만' rows="2"></textarea>
         <div class="form-actions">
           <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
           <button type="submit" class="btn btn-primary">등록하기</button>
@@ -145,6 +155,7 @@
         <button class="admin-tab" data-tab="music">🎵 음악 관리</button>
         <button class="admin-tab" data-tab="stats">📊 통계</button>
         <button class="admin-tab" data-tab="site">⚙ 사이트 설정</button>
+        <button class="admin-tab" data-tab="live">🔴 생방송 설정</button>
         <button class="admin-tab" data-tab="images">🔄 이미지 재업로드</button>
         <button class="admin-tab" data-tab="backup">💾 전체 백업</button>
       </div>
@@ -268,6 +279,38 @@
           <input type="text" id="siteTaglineInput" placeholder="개인 팬 아카이브 홈페이지">
           <button id="siteSettingsSaveBtn" class="btn btn-primary settings-save-btn">저장</button>
           <span id="siteSettingsStatus" class="hint-text" style="margin:8px 0 0;"></span>
+        </div>
+      </div>
+
+      <!-- 생방송 설정 -->
+      <div id="adminTabLive" class="admin-panel hidden">
+        <p class="hint-text">방송 시작하면 켜고, 끝나면 꺼주세요. "자동 감지"를 켜두면 SOOP에서 방송 중인지 자동으로 확인을 시도하는데, SOOP 쪽 사정으로 안 될 수도 있어요 — 그럴 땐 수동 켜기/끄기가 항상 확실하게 동작해요.</p>
+        <div class="site-settings-form">
+          <label class="settings-label">
+            <input type="checkbox" id="liveManualToggle"> 지금 라이브예요 (수동으로 켜기/끄기)
+          </label>
+
+          <label class="settings-label" style="margin-top:14px;">
+            <input type="checkbox" id="liveAutoDetectToggle"> 자동 감지 시도하기
+          </label>
+          <label class="settings-label">SOOP BJ 아이디 (자동 감지용)</label>
+          <input type="text" id="liveBjIdInput" placeholder="예: jin1944">
+
+          <label class="settings-label">방송 제목 (선택, 라이브 배너에 표시)</label>
+          <input type="text" id="liveTitleInput" placeholder="예: 오늘도 방셀!">
+          <label class="settings-label">시청 링크</label>
+          <input type="text" id="liveUrlInput" placeholder="https://www.sooplive.com/jin1944">
+
+          <label class="settings-label" style="margin-top:14px;">표시 위치</label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="liveShowTopCheck"> 상단 배너
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="liveShowSidebarCheck"> 사이드바
+          </label>
+
+          <button id="liveSettingsSaveBtn" class="btn btn-primary settings-save-btn">저장</button>
+          <span id="liveSettingsStatus" class="hint-text" style="margin:8px 0 0;"></span>
         </div>
       </div>
 
@@ -430,8 +473,8 @@
 </div>
 <audio id="musicAudio" preload="metadata"></audio>
 
-<script type="module" src="firebase-config.js?v=20260811a"></script>
-<script type="module" src="app.js?v=20260811a"></script>
+<script type="module" src="firebase-config.js?v=20260809b"></script>
+<script type="module" src="app.js?v=20260809b"></script>
 <script>
   // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
   // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
