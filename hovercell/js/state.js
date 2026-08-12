@@ -96,6 +96,15 @@ export const THEME_PRESETS = {
     intensity: 50,
     speed: 100,
   },
+  letter: {
+    label: "편지지",
+    accentColor: "#c2654a",
+    revealMode: "flip3d",
+    particleShape: "letter",
+    effects: { float: true, shine: true, sparks: true, glow: false, tilt: false, ripple: false },
+    intensity: 45,
+    speed: 85,
+  },
 };
 
 export function cloneState(state) {

@@ -54,6 +54,7 @@ const PARTICLE_GLYPHS = {
   snow: ["\u2744", "\u2745", "\u2746"], // ❄ ❅ ❆
   sparkle: ["\u2736", "\u2737", "\u2735"], // ✶ ✷ ✵
   musicnote: ["\u266A", "\u266B", "\u266C"], // ♪ ♫ ♬
+  letter: ["\u2709", "\u{1F48C}", "\u2764"], // ✉ 💌 ❤
 };
 
 export function buildHoverCellMarkup(state, { mode = "embedded", cellId = "hc-mb" } = {}) {
