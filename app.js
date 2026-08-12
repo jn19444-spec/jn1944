@@ -117,6 +117,15 @@ function tierOrderOf(tierId) {
   const t = memberTiers.find(x => x.id === tierId);
   return t ? (t.order || 0) : 0;
 }
+function canAccessHovercell() {
+  if (isAdmin) return true;
+  if (!siteConfig.hovercellMinTierId) return false; // 설정 안 했으면 관리자만
+  if (!currentUser) return false;
+  return tierOrderOf(myTierId) >= tierOrderOf(siteConfig.hovercellMinTierId);
+}
+function updateHovercellButtonVisibility() {
+  el("hovercellTopBtn").classList.toggle("hidden", !canAccessHovercell());
+}
 function tierName(tierId) {
   if (!tierId) return "기본 등급";
   const t = memberTiers.find(x => x.id === tierId);
@@ -408,6 +417,7 @@ onAuthStateChanged(auth, async (user) => {
   el("logoutBtn").classList.toggle("hidden", !user);
   el("nicknameBtn").classList.toggle("hidden", !user);
   el("adminMenuBtn").classList.toggle("hidden", !isAdmin);
+  updateHovercellButtonVisibility();
   el("whoami").textContent = isAdmin ? "관리자로 로그인됨" : (user ? `회원으로 로그인됨 (${emailToId(user.email)})` : "");
   el("writeBtn").classList.toggle("hidden", !(isAdmin && currentBoard));
   el("musicWidget").classList.toggle("hidden", musicTracks.length === 0 && !isAdmin);
@@ -528,6 +538,18 @@ el("adminBackBtn").addEventListener("click", () => {
   else { showHomeDashboard(); pushUrl("/"); }
 });
 
+el("hovercellTopBtn").addEventListener("click", () => {
+  if (!canAccessHovercell()) return; // 만일을 대비한 안전장치(버튼은 이미 숨겨져 있어야 정상)
+  showHovercellView();
+});
+el("hovercellBackBtn").addEventListener("click", () => {
+  showListView();
+  if (currentBoardId === "__all__") { loadAllPosts(); pushUrl("/board"); }
+  else if (currentBoardId === "__search__") { performSearch({ skipUrl: true }); pushUrl("/board", { q: el("searchInput").value.trim() }); }
+  else if (currentBoardId) { loadPosts(currentBoardId); pushUrl("/board", { b: currentBoardId }); }
+  else { showHomeDashboard(); pushUrl("/"); }
+});
+
 // 탭 이름 → 그 탭이 열릴 때 새로 불러와야 할 데이터
 const ADMIN_TAB_LOADERS = {
   members: loadMemberList,
@@ -539,16 +561,7 @@ const ADMIN_TAB_LOADERS = {
   stats: loadStats,
   site: fillSiteSettingsForm,
   live: fillLiveSettingsForm,
-  hovercell: loadHovercellTab,
 };
-
-// 호버셀 제작 툴은 iframe이라 탭을 실제로 열 때만 불러와요(안 그러면 방문할 때마다 매번 불필요하게 로딩됨).
-// 배포 위치가 도메인 루트든(Firebase/Vercel) GitHub Pages 저장소 하위 경로든 상관없이
-// 항상 올바른 위치를 가리키도록, 라우팅에서 쓰는 것과 같은 BASE_PATH를 그대로 재사용해요.
-function loadHovercellTab() {
-  const frame = el("hovercellFrame");
-  if (!frame.src) frame.src = BASE_PATH + "/hovercell/index.html";
-}
 
 function activateAdminTab(tabName) {
   document.querySelectorAll(".admin-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tabName));
@@ -984,7 +997,7 @@ function nextOrder() {
 
 // ---------- 사이트 설정 (프로필 카드 문구) ----------
 // config/site 문서는 관리자 확인용 adminUid도 같이 들어있는 문서라, merge:true로 필드만 덧붙여요.
-let siteConfig = { siteAvatar: "🐦", siteName: "+구구+", siteTagline: "개인 팬 아카이브 홈페이지", adminNickname: "" };
+let siteConfig = { siteAvatar: "🐦", siteName: "+구구+", siteTagline: "개인 팬 아카이브 홈페이지", adminNickname: "", hovercellMinTierId: null };
 
 async function loadSiteConfig() {
   try {
@@ -996,12 +1009,14 @@ async function loadSiteConfig() {
         siteName: d.siteName || siteConfig.siteName,
         siteTagline: d.siteTagline || siteConfig.siteTagline,
         adminNickname: d.adminNickname || siteConfig.adminNickname,
+        hovercellMinTierId: d.hovercellMinTierId || null,
       };
     }
   } catch (e) {
     // 무시 - 기본 문구로 표시
   }
   applySiteConfig();
+  updateHovercellButtonVisibility();
 }
 
 function applySiteConfig() {
@@ -1011,10 +1026,17 @@ function applySiteConfig() {
   el("homeBtn").textContent = siteConfig.siteName;
 }
 
-function fillSiteSettingsForm() {
+async function fillSiteSettingsForm() {
   el("siteAvatarInput").value = siteConfig.siteAvatar;
   el("siteNameInput").value = siteConfig.siteName;
   el("siteTaglineInput").value = siteConfig.siteTagline;
+
+  if (!memberTiers.length) await loadMemberTiers();
+  const select = el("hovercellAccessSelect");
+  select.innerHTML = '<option value="">관리자만</option>' +
+    memberTiers.map(t => `<option value="${t.id}">${escapeHtml(t.name)} 이상</option>`).join("");
+  select.value = siteConfig.hovercellMinTierId || "";
+
   el("siteSettingsStatus").textContent = "";
 }
 
@@ -1022,13 +1044,15 @@ el("siteSettingsSaveBtn").addEventListener("click", async () => {
   const avatar = el("siteAvatarInput").value.trim() || "🐦";
   const name = el("siteNameInput").value.trim() || "+구구+";
   const tagline = el("siteTaglineInput").value.trim();
+  const hovercellMinTierId = el("hovercellAccessSelect").value || null;
   const btn = el("siteSettingsSaveBtn");
   const statusEl = el("siteSettingsStatus");
   btn.disabled = true;
   try {
-    await setDoc(doc(db, "config", "site"), { siteAvatar: avatar, siteName: name, siteTagline: tagline }, { merge: true });
-    siteConfig = { siteAvatar: avatar, siteName: name, siteTagline: tagline };
+    await setDoc(doc(db, "config", "site"), { siteAvatar: avatar, siteName: name, siteTagline: tagline, hovercellMinTierId }, { merge: true });
+    siteConfig = { ...siteConfig, siteAvatar: avatar, siteName: name, siteTagline: tagline, hovercellMinTierId };
     applySiteConfig();
+    updateHovercellButtonVisibility();
     statusEl.textContent = "저장했어요 ✓";
     setTimeout(() => { statusEl.textContent = ""; }, 2500);
   } catch (err) {
@@ -1252,6 +1276,7 @@ function showListView() {
   el("detailView").classList.add("hidden");
   el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
+  el("hovercellView").classList.add("hidden");
   const emptyP = el("emptyState").querySelector("p");
   if (emptyP) emptyP.textContent = "아직 게시글이 없어요.";
 }
@@ -1261,6 +1286,7 @@ function showWriteView() {
   el("detailView").classList.add("hidden");
   el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
+  el("hovercellView").classList.add("hidden");
   el("writeBoardLabel").textContent = currentBoard ? currentBoard.name : "";
   el("writeViewTitle").textContent = editingPostId ? "글 수정" : "글쓰기";
 }
@@ -1270,6 +1296,7 @@ function showDetailView() {
   el("detailView").classList.remove("hidden");
   el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
+  el("hovercellView").classList.add("hidden");
 }
 function showGalleryView() {
   el("listView").classList.add("hidden");
@@ -1277,6 +1304,7 @@ function showGalleryView() {
   el("detailView").classList.add("hidden");
   el("galleryView").classList.remove("hidden");
   el("adminView").classList.add("hidden");
+  el("hovercellView").classList.add("hidden");
 }
 function showAdminView() {
   el("listView").classList.add("hidden");
@@ -1284,6 +1312,20 @@ function showAdminView() {
   el("detailView").classList.add("hidden");
   el("galleryView").classList.add("hidden");
   el("adminView").classList.remove("hidden");
+  el("hovercellView").classList.add("hidden");
+}
+// 호버셀 제작 툴은 iframe이라 처음 열 때만 불러와요. 배포 위치가 도메인 루트든(Firebase/Vercel)
+// GitHub Pages 저장소 하위 경로든 상관없이 항상 올바른 위치를 가리키도록, 라우팅에서
+// 쓰는 것과 같은 BASE_PATH를 그대로 재사용해요.
+function showHovercellView() {
+  el("listView").classList.add("hidden");
+  el("writeView").classList.add("hidden");
+  el("detailView").classList.add("hidden");
+  el("galleryView").classList.add("hidden");
+  el("adminView").classList.add("hidden");
+  el("hovercellView").classList.remove("hidden");
+  const frame = el("hovercellFrame");
+  if (!frame.src) frame.src = BASE_PATH + "/hovercell/index.html";
 }
 
 function showHomeDashboard() {
@@ -3832,7 +3874,7 @@ renderBoardTree();
 showHomeDashboard();
 loadSiteConfig();
 loadTopMenu();
-loadMemberTiers().then(() => { if (boardRows.length) renderBoardTree(); });
+loadMemberTiers().then(() => { if (boardRows.length) renderBoardTree(); updateHovercellButtonVisibility(); });
 initMusicPlayer();
 loadLiveConfig();
 
