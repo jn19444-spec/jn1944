@@ -140,6 +140,23 @@ body{
 .btn-sm{ padding:4px 9px; font-size:11px; flex-shrink:0; }
 .back-btn{margin-bottom:16px;}
 
+/* ---------- 호버셀 제작 툴 (iframe 연동) ---------- */
+.hovercell-frame-wrap{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  overflow:hidden;
+  background:var(--bg-panel);
+  height:calc(100vh - 220px);
+  min-height:520px;
+}
+.hovercell-frame{
+  width:100%;
+  height:100%;
+  border:0;
+  display:block;
+  background:#fff;
+}
+
 /* ---------- layout ---------- */
 .layout{
   max-width:1160px; margin:0 auto;

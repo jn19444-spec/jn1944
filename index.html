@@ -17,7 +17,7 @@
 <link rel="dns-prefetch" href="https://i.ibb.co">
 <link rel="preconnect" href="https://ibb.co">
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260811b">
+<link rel="stylesheet" href="style.css?v=20260812a">
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -35,6 +35,7 @@
       </div>
       <span id="whoami" class="whoami"></span>
       <button id="nicknameBtn" class="btn btn-ghost hidden">✏ 닉네임</button>
+      <button id="hovercellBtn" class="btn btn-ghost hidden">🎨 호버셀 제작</button>
       <button id="adminMenuBtn" class="btn btn-ghost hidden">🛠 관리자 메뉴 <span id="adminMenuPendingBadge" class="pending-badge hidden"></span></button>
       <button id="signupBtn" class="btn btn-ghost">회원가입</button>
       <button id="loginBtn" class="btn btn-ghost">로그인</button>
@@ -138,6 +139,18 @@
       </div>
       <div id="galleryGrid" class="gallery-grid"></div>
       <div id="galleryEmpty" class="empty-state hidden"><p>아직 사진이 없어요.</p></div>
+    </section>
+
+    <!-- 호버셀 제작 툴 (승인된 회원만 접근 가능, 별도 툴을 iframe으로 연동) -->
+    <section id="hovercellView" class="hidden">
+      <button id="hovercellBackBtn" class="btn btn-ghost back-btn">← 목록으로</button>
+      <div class="content-header">
+        <h2>🎨 호버셀 제작 툴</h2>
+      </div>
+      <p class="hint-text">이미지를 올려서 호버(마우스 오버)하면 바뀌는 효과 카드를 만들고, 완성된 HTML을 복사해서 글쓰기에 붙여넣으세요.</p>
+      <div class="hovercell-frame-wrap">
+        <iframe id="hovercellFrame" class="hovercell-frame" title="호버셀 제작 툴" loading="lazy"></iframe>
+      </div>
     </section>
 
     <!-- 관리자 메뉴 (게시글 목록처럼 큰 화면으로 표시) -->
@@ -489,8 +502,8 @@
 </div>
 <audio id="musicAudio" preload="metadata"></audio>
 
-<script type="module" src="firebase-config.js?v=20260811b"></script>
-<script type="module" src="app.js?v=20260811b"></script>
+<script type="module" src="firebase-config.js?v=20260812a"></script>
+<script type="module" src="app.js?v=20260812a"></script>
 <script>
   // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
   // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
