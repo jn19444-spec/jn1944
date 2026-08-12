@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>호버방셀 제작툴</title>
+  <link rel="stylesheet" href="./css/editor.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div>
+        <h1>호버방셀 제작툴</h1>
+        <p class="subtitle">GitHub Pages용 reveal 호버방셀을 만들고, 리포에 바로 커밋할 HTML로 내보냅니다.</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" id="btn-reset" class="btn btn-ghost">초기화</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel controls">
+        <section class="section">
+          <h2>이미지</h2>
+          <label class="field">
+            <span>표지 (호버 전)</span>
+            <input type="file" id="overlay-input" accept="image/*">
+          </label>
+          <label class="field">
+            <span>공개 (호버 후)</span>
+            <input type="file" id="base-input" accept="image/*">
+          </label>
+          <p class="hint">위·아래 이미지 크기가 다르면 미리보기에서 위치를 맞춰 주세요.</p>
+        </section>
+
+        <section class="section">
+          <h2>테마 프리셋</h2>
+          <div class="theme-row" id="theme-row">
+            <button type="button" class="theme-tab" data-theme="romance">로맨스</button>
+            <button type="button" class="theme-tab" data-theme="night">나이트</button>
+            <button type="button" class="theme-tab" data-theme="fairy">페어리</button>
+            <button type="button" class="theme-tab" data-theme="vintage">빈티지</button>
+          </div>
+          <p class="hint">테마를 누르면 아래 애니메이션·효과·색상이 한 번에 세팅돼요. 슬라이더를 직접 만지면 커스텀으로 바뀝니다.</p>
+        </section>
+
+        <section class="section">
+          <h2>위치 조절</h2>
+          <div class="layer-tabs" role="tablist">
+            <button type="button" class="layer-tab active" data-layer="overlay">표지</button>
+            <button type="button" class="layer-tab" data-layer="base">공개</button>
+          </div>
+          <div class="sliders" id="adjust-sliders"></div>
+        </section>
+
+        <section class="section">
+          <h2>공개 애니메이션</h2>
+          <label class="field">
+            <span>호버(탭) 시 전환 방식</span>
+            <select id="reveal-mode">
+              <option value="fade">소프트 페이드 (기본)</option>
+              <option value="zoomblur">줌 + 블러</option>
+              <option value="slide">슬라이드</option>
+              <option value="wipe">와이프</option>
+              <option value="flip3d">3D 플립</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="section">
+          <h2>효과</h2>
+          <label class="check"><input type="checkbox" id="fx-float" checked> 둥둥 떠다니기</label>
+          <label class="check"><input type="checkbox" id="fx-shine" checked> 빛 반사 (shine)</label>
+          <label class="check"><input type="checkbox" id="fx-glow"> 글로우</label>
+          <label class="check"><input type="checkbox" id="fx-sparks" checked> 반짝 파티클</label>
+          <label class="check"><input type="checkbox" id="fx-tilt"> 3D 마우스 틸트 (PC 전용)</label>
+          <label class="field">
+            <span>파티클 모양</span>
+            <select id="particle-shape">
+              <option value="star">별</option>
+              <option value="heart">하트</option>
+              <option value="flower">꽃</option>
+              <option value="bubble">버블</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>포인트 컬러 (글로우·파티클)</span>
+            <input type="color" id="accent-color" value="#ffd66b">
+          </label>
+          <label class="field">
+            <span>효과 강도 <strong id="intensity-value">60</strong></span>
+            <input type="range" id="fx-intensity" min="0" max="100" value="60">
+          </label>
+          <label class="field">
+            <span>효과 속도 <strong id="speed-value">100</strong>%</span>
+            <input type="range" id="fx-speed" min="50" max="200" value="100">
+          </label>
+          <label class="field">
+            <span>모서리 둥글기 <strong id="radius-value">22</strong>px</span>
+            <input type="range" id="border-radius" min="0" max="48" value="22">
+          </label>
+        </section>
+
+        <section class="section">
+          <h2>내보내기</h2>
+          <div class="export-mode">
+            <label class="radio"><input type="radio" name="export-mode" value="embedded" checked> 이미지 포함 HTML (GitHub에 파일 1개만)</label>
+            <label class="radio"><input type="radio" name="export-mode" value="files"> 이미지 분리 (repo에 html + webp 2장)</label>
+          </div>
+          <div class="export-actions">
+            <button type="button" id="btn-copy-html" class="btn">HTML 복사</button>
+            <button type="button" id="btn-download-html" class="btn btn-secondary">HTML 다운로드</button>
+          </div>
+          <p class="hint">"이미지 포함 HTML"을 다운로드해서 리포에 그대로 커밋하면 GitHub Pages에서 바로 보여요. "이미지 분리"를 고르면 html + webp 2장이 따로 나오니 함께 올리세요.</p>
+          <textarea id="export-output" readonly rows="8" placeholder="내보낸 코드가 여기 표시됩니다."></textarea>
+        </section>
+      </aside>
+
+      <section class="panel preview-panel">
+        <div class="preview-toolbar">
+          <span>미리보기</span>
+          <span class="preview-hint">PC: 마우스 올리기 · 모바일: 탭</span>
+        </div>
+        <div class="preview-stage" id="preview-stage">
+          <p class="placeholder" id="preview-placeholder">표지·공개 이미지를 업로드하면 미리보기가 표시됩니다.</p>
+          <div id="preview-mount" hidden></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
