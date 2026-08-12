@@ -28,6 +28,7 @@ const els = {
   revealMode: document.getElementById("reveal-mode"),
   fxGlow: document.getElementById("fx-glow"),
   fxTilt: document.getElementById("fx-tilt"),
+  fxRipple: document.getElementById("fx-ripple"),
   particleShape: document.getElementById("particle-shape"),
   accentColor: document.getElementById("accent-color"),
   fxIntensity: document.getElementById("fx-intensity"),
@@ -53,6 +54,7 @@ function syncControlsFromState() {
   els.revealMode.value = state.revealMode;
   els.fxGlow.checked = state.effects.glow;
   els.fxTilt.checked = state.effects.tilt;
+  els.fxRipple.checked = state.effects.ripple;
   els.particleShape.value = state.particleShape;
   els.accentColor.value = state.accentColor;
   els.fxIntensity.value = String(state.intensity);
@@ -128,6 +130,11 @@ els.fxGlow.addEventListener("change", (e) => {
 });
 els.fxTilt.addEventListener("change", (e) => {
   state.effects.tilt = e.target.checked;
+  state.theme = "custom";
+  render();
+});
+els.fxRipple.addEventListener("change", (e) => {
+  state.effects.ripple = e.target.checked;
   state.theme = "custom";
   render();
 });

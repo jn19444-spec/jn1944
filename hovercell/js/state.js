@@ -14,11 +14,12 @@ export const DEFAULT_STATE = {
     sparks: true,
     glow: false,
     tilt: false,
+    ripple: false,
   },
   // 공개(호버) 애니메이션 종류
-  revealMode: "fade", // fade | zoomblur | slide | wipe | flip3d
+  revealMode: "fade", // fade | zoomblur | slide | wipe | flip3d | iris | drop
   // 파티클(반짝이) 모양
-  particleShape: "star", // star | heart | flower | bubble
+  particleShape: "star", // star | heart | flower | bubble | snow | sparkle | musicnote
   // 글로우/파티클/틸트 등에 쓰이는 포인트 컬러
   accentColor: "#ffd66b",
   // 효과 강도(0~100) - 파티클 개수, 글로우 세기, 틸트 각도, 블러 세기 등에 반영
@@ -37,7 +38,7 @@ export const THEME_PRESETS = {
     accentColor: "#ff8fb3",
     revealMode: "zoomblur",
     particleShape: "heart",
-    effects: { float: true, shine: true, sparks: true, glow: true, tilt: false },
+    effects: { float: true, shine: true, sparks: true, glow: true, tilt: false, ripple: false },
     intensity: 65,
     speed: 90,
   },
@@ -46,7 +47,7 @@ export const THEME_PRESETS = {
     accentColor: "#7c9cff",
     revealMode: "wipe",
     particleShape: "bubble",
-    effects: { float: true, shine: false, sparks: true, glow: true, tilt: true },
+    effects: { float: true, shine: false, sparks: true, glow: true, tilt: true, ripple: false },
     intensity: 55,
     speed: 110,
   },
@@ -55,7 +56,7 @@ export const THEME_PRESETS = {
     accentColor: "#8fffb3",
     revealMode: "slide",
     particleShape: "flower",
-    effects: { float: true, shine: true, sparks: true, glow: false, tilt: false },
+    effects: { float: true, shine: true, sparks: true, glow: false, tilt: false, ripple: false },
     intensity: 75,
     speed: 100,
   },
@@ -64,9 +65,36 @@ export const THEME_PRESETS = {
     accentColor: "#ffb347",
     revealMode: "flip3d",
     particleShape: "star",
-    effects: { float: false, shine: true, sparks: false, glow: false, tilt: false },
+    effects: { float: false, shine: true, sparks: false, glow: false, tilt: false, ripple: false },
     intensity: 45,
     speed: 80,
+  },
+  snow: {
+    label: "눈꽃",
+    accentColor: "#bfe3ff",
+    revealMode: "iris",
+    particleShape: "snow",
+    effects: { float: true, shine: true, sparks: true, glow: true, tilt: false, ripple: false },
+    intensity: 60,
+    speed: 95,
+  },
+  neon: {
+    label: "네온",
+    accentColor: "#ff4fd8",
+    revealMode: "drop",
+    particleShape: "sparkle",
+    effects: { float: false, shine: true, sparks: true, glow: true, tilt: true, ripple: true },
+    intensity: 80,
+    speed: 130,
+  },
+  melody: {
+    label: "멜로디",
+    accentColor: "#b39dff",
+    revealMode: "fade",
+    particleShape: "musicnote",
+    effects: { float: true, shine: false, sparks: true, glow: false, tilt: false, ripple: true },
+    intensity: 50,
+    speed: 100,
   },
 };
 

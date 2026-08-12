@@ -22,12 +22,38 @@ function clampNum(n, min, max, fallback) {
   return Math.min(max, Math.max(min, v));
 }
 
+// 포인트 컬러(accentColor)에서 밝기가 다른 변형 4가지를 뽑아서 반짝이 파티클 색으로 써요.
+// 예전엔 파티클 색이 무조건 골드 계열로 고정돼 있어서, 테마를 바꿔도 반짝이만 안 어울렸어요.
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
+  if (!m) return { r: 255, g: 214, b: 107 };
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+function mixChannel(a, b, t) {
+  return Math.round(a + (b - a) * t);
+}
+function rgbToHex(r, g, b) {
+  return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("");
+}
+function deriveSparkColors(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  return [
+    rgbToHex(r, g, b),
+    rgbToHex(mixChannel(r, 255, 0.35), mixChannel(g, 255, 0.35), mixChannel(b, 255, 0.35)),
+    rgbToHex(mixChannel(r, 0, 0.2), mixChannel(g, 0, 0.2), mixChannel(b, 0, 0.2)),
+    rgbToHex(mixChannel(r, 255, 0.7), mixChannel(g, 255, 0.7), mixChannel(b, 255, 0.7)),
+  ];
+}
+
 // 파티클 모양별 글자(유니코드) 세트
 const PARTICLE_GLYPHS = {
   star: ["\u2726", "\u2727", "\u25CF"], // ✦ ✧ ●
   heart: ["\u2764", "\u2765", "\u2661"], // ❤ ❥ ♡
   flower: ["\u2740", "\u273F", "\u2731"], // ✿ ✿(alt) ✱
   bubble: ["\u25CF", "\u25CB", "\u25CE"], // ● ○ ◎
+  snow: ["\u2744", "\u2745", "\u2746"], // ❄ ❅ ❆
+  sparkle: ["\u2736", "\u2737", "\u2735"], // ✶ ✷ ✵
+  musicnote: ["\u266A", "\u266B", "\u266C"], // ♪ ♫ ♬
 };
 
 export function buildHoverCellMarkup(state, { mode = "embedded", cellId = "hc-mb" } = {}) {
@@ -35,6 +61,7 @@ export function buildHoverCellMarkup(state, { mode = "embedded", cellId = "hc-mb
   const baseSrc = mode === "files" ? "./base.webp" : state.baseSrc;
   const radius = Number(state.borderRadius) || 0;
   const floatClass = state.effects.float ? " hc-float bob" : " hc-float";
+  const rippleClass = state.effects.ripple ? " hc-ripple-enabled" : "";
   const shineBlock = state.effects.shine
     ? '<div class="hc-shinewrap"><div class="hc-shine"></div></div>'
     : "";
@@ -44,7 +71,6 @@ export function buildHoverCellMarkup(state, { mode = "embedded", cellId = "hc-mb
   const accent = escapeHtml(state.accentColor || "#ffd66b");
   const glowClass = state.effects.glow ? " hc-glow-enabled" : "";
   const needsPerspective = revealMode === "flip3d" || state.effects.tilt;
-  const wrapStyle = needsPerspective ? ' style="perspective:900px"' : "";
 
   const mbStyle = [
     `border-radius:${radius}px`,
@@ -52,8 +78,12 @@ export function buildHoverCellMarkup(state, { mode = "embedded", cellId = "hc-mb
     `--hc-dur:${(100 / speed).toFixed(3)}`,
     `--hc-accent:${accent}`,
   ].join(";");
+  // 바깥 래퍼(hc-float)에도 같은 둥근 모서리를 줘서, 리플(파동) 링이 카드 모양과 맞게 나와요.
+  const wrapStyleParts = [`border-radius:${radius}px`];
+  if (needsPerspective) wrapStyleParts.push("perspective:900px");
+  const wrapStyle = ` style="${wrapStyleParts.join(";")}"`;
 
-  return `<div class="${floatClass.trim()}"${wrapStyle}><div class="hc-mb${glowClass}" id="${cellId}" data-reveal="${revealMode}" style="${mbStyle}">
+  return `<div class="${(floatClass + rippleClass).trim()}"${wrapStyle}><div class="hc-mb${glowClass}" id="${cellId}" data-reveal="${revealMode}" style="${mbStyle}">
   <img class="hc-base" ${imageAttrs(state.adjust.base, baseSrc)}>
   <img class="hc-overlay" ${imageAttrs(state.adjust.overlay, overlaySrc)}>
   ${shineBlock}
@@ -66,6 +96,7 @@ export function buildHoverCellScript(state, { cellId = "hc-mb", hostSelector = "
   const intensity = clampNum(state.intensity, 0, 100, 60);
   const speed = clampNum(state.speed, 50, 200, 100);
   const glyphs = JSON.stringify(PARTICLE_GLYPHS[state.particleShape] || PARTICLE_GLYPHS.star);
+  const sparkColors = JSON.stringify(deriveSparkColors(state.accentColor || "#ffd66b"));
 
   return `<script>
 (function(){
@@ -77,7 +108,7 @@ var glyphs=${glyphs};
 var sparkCount=Math.max(3,Math.round(4+10*(intensity/100)));
 function sparks(host,n){
   if(!sparksEnabled||matchMedia("(prefers-reduced-motion: reduce)").matches)return;
-  var colors=["#ffd97a","#ffe9b0","#ffc65c","#fff3d6"];
+  var colors=${sparkColors};
   for(var i=0;i<n;i++){
     var s=document.createElement("span");
     s.textContent=glyphs[Math.floor(Math.random()*glyphs.length)];
@@ -149,7 +180,7 @@ mb._hcCleanup=function(){
 
 export function buildHoverCellStyles() {
   return `<style>
-.hc-float{line-height:0;will-change:transform}
+.hc-float{line-height:0;will-change:transform;position:relative}
 .hc-float.bob{animation:hc-bob calc(6s * var(--hc-dur,1)) ease-in-out infinite}
 @keyframes hc-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .hc-mb{position:relative;line-height:0;overflow:hidden;cursor:pointer;box-shadow:0 18px 42px rgba(0,0,0,.30),0 4px 12px rgba(0,0,0,.16);transition:transform .2s ease-out,box-shadow .4s ease}
@@ -184,6 +215,14 @@ export function buildHoverCellStyles() {
 .hc-mb[data-reveal="flip3d"] .hc-base{transform:var(--hc-adj,translate(0,0) scale(1)) rotateY(90deg) scale(1.06)}
 .hc-mb[data-reveal="flip3d"].on .hc-base{transform:var(--hc-adj,translate(0,0) scale(1)) rotateY(0deg) scale(1)}
 
+/* --- 공개 애니메이션: 아이리스(원형 확장) --- */
+.hc-mb[data-reveal="iris"] .hc-overlay{transition:clip-path calc(.7s * var(--hc-dur,1)) cubic-bezier(.65,0,.35,1);clip-path:circle(150% at 50% 50%);opacity:1;transform:var(--hc-adj,translate(0,0) scale(1))}
+.hc-mb[data-reveal="iris"].on .hc-overlay{clip-path:circle(0% at 50% 50%)}
+
+/* --- 공개 애니메이션: 드롭(아래로 떨어짐) --- */
+.hc-mb[data-reveal="drop"] .hc-overlay{transition:transform calc(.6s * var(--hc-dur,1)) cubic-bezier(.55,0,.85,.35),opacity calc(.6s * var(--hc-dur,1)) ease}
+.hc-mb[data-reveal="drop"].on .hc-overlay{transform:var(--hc-adj,translate(0,0) scale(1)) translateY(115%) rotate(8deg);opacity:.05}
+
 /* --- 글로우 --- */
 .hc-mb.hc-glow-enabled{box-shadow:0 18px 42px rgba(0,0,0,.30),0 4px 12px rgba(0,0,0,.16),0 0 calc(6px + 14px * var(--hc-i,0.6)) 0 var(--hc-accent,#ffd66b)}
 .hc-mb.hc-glow-enabled.on{animation:hc-glow-pulse calc(2.2s * var(--hc-dur,1)) ease-in-out infinite}
@@ -191,6 +230,11 @@ export function buildHoverCellStyles() {
   0%,100%{box-shadow:0 18px 42px rgba(0,0,0,.30),0 4px 12px rgba(0,0,0,.16),0 0 calc(10px + 26px * var(--hc-i,0.6)) 0 var(--hc-accent,#ffd66b)}
   50%{box-shadow:0 18px 42px rgba(0,0,0,.30),0 4px 12px rgba(0,0,0,.16),0 0 calc(4px + 10px * var(--hc-i,0.6)) 0 var(--hc-accent,#ffd66b)}
 }
+
+/* --- 리플(파동): 호버할 때 카드 테두리에서 링이 한 번 퍼져나가요 --- */
+.hc-float.hc-ripple-enabled::after{content:"";position:absolute;inset:0;border-radius:inherit;border:2px solid var(--hc-accent,#ffd66b);opacity:0;pointer-events:none;z-index:5}
+.hc-float.hc-ripple-enabled:has(.hc-mb.on)::after{animation:hc-ripple calc(.9s * var(--hc-dur,1)) ease-out}
+@keyframes hc-ripple{0%{opacity:.85;transform:scale(1)}100%{opacity:0;transform:scale(1.22)}}
 </style>`;
 }
 

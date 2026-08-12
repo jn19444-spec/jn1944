@@ -26,7 +26,7 @@ html, body {
 }
 
 .app {
-  max-width: 1280px;
+  max-width: 1680px;
   margin: 0 auto;
   padding: 24px;
 }
@@ -229,7 +229,7 @@ textarea {
 }
 
 .preview-panel {
-  min-height: 560px;
+  min-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
 }
@@ -255,7 +255,7 @@ textarea {
   align-items: center;
   justify-content: center;
   padding: 28px;
-  min-height: 500px;
+  min-height: calc(100vh - 230px);
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.03), transparent 55%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 10px, transparent 10px 20px);
@@ -270,7 +270,7 @@ textarea {
 }
 
 /* --- exported/preview hover cell --- */
-.hc-float { line-height: 0; will-change: transform; }
+.hc-float { line-height: 0; will-change: transform; position: relative; }
 .hc-float.bob { animation: hc-bob calc(6s * var(--hc-dur, 1)) ease-in-out infinite; }
 @keyframes hc-bob {
   0%, 100% { transform: translateY(0); }
@@ -294,8 +294,9 @@ textarea {
 }
 
 .hc-base {
-  max-width: min(96vw, 720px);
-  max-height: 72vh;
+  /* 미리보기 박스가 화면 높이의 대부분을 차지하도록 커졌으니, 카드도 그만큼 크게 보이게 상한선을 올림 */
+  max-width: min(78vw, 1040px);
+  max-height: calc(100vh - 320px);
   width: auto;
   height: auto;
   display: block;
@@ -372,6 +373,14 @@ textarea {
 .hc-mb[data-reveal="flip3d"] .hc-base { transform: var(--hc-adj, translate(0, 0) scale(1)) rotateY(90deg) scale(1.06); }
 .hc-mb[data-reveal="flip3d"].on .hc-base { transform: var(--hc-adj, translate(0, 0) scale(1)) rotateY(0deg) scale(1); }
 
+/* --- 공개 애니메이션: 아이리스(원형 확장) --- */
+.hc-mb[data-reveal="iris"] .hc-overlay { transition: clip-path calc(0.7s * var(--hc-dur, 1)) cubic-bezier(0.65, 0, 0.35, 1); clip-path: circle(150% at 50% 50%); opacity: 1; transform: var(--hc-adj, translate(0, 0) scale(1)); }
+.hc-mb[data-reveal="iris"].on .hc-overlay { clip-path: circle(0% at 50% 50%); }
+
+/* --- 공개 애니메이션: 드롭(아래로 떨어짐) --- */
+.hc-mb[data-reveal="drop"] .hc-overlay { transition: transform calc(0.6s * var(--hc-dur, 1)) cubic-bezier(0.55, 0, 0.85, 0.35), opacity calc(0.6s * var(--hc-dur, 1)) ease; }
+.hc-mb[data-reveal="drop"].on .hc-overlay { transform: var(--hc-adj, translate(0, 0) scale(1)) translateY(115%) rotate(8deg); opacity: 0.05; }
+
 /* --- 글로우 --- */
 .hc-mb.hc-glow-enabled { box-shadow: 0 18px 42px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 calc(6px + 14px * var(--hc-i, 0.6)) 0 var(--hc-accent, #ffd66b); }
 .hc-mb.hc-glow-enabled.on { animation: hc-glow-pulse calc(2.2s * var(--hc-dur, 1)) ease-in-out infinite; }
@@ -380,7 +389,18 @@ textarea {
   50% { box-shadow: 0 18px 42px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 calc(4px + 10px * var(--hc-i, 0.6)) 0 var(--hc-accent, #ffd66b); }
 }
 
+/* --- 리플(파동): 호버할 때 카드 테두리에서 링이 한 번 퍼져나가요 --- */
+.hc-float.hc-ripple-enabled::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--hc-accent, #ffd66b); opacity: 0; pointer-events: none; z-index: 5; }
+.hc-float.hc-ripple-enabled:has(.hc-mb.on)::after { animation: hc-ripple calc(0.9s * var(--hc-dur, 1)) ease-out; }
+@keyframes hc-ripple {
+  0% { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.22); }
+}
+
 @media (max-width: 960px) {
   .layout { grid-template-columns: 1fr; }
   .controls { max-height: none; }
+  .preview-panel { min-height: auto; }
+  .preview-stage { min-height: 60vh; }
+  .hc-base { max-height: 56vh; }
 }
