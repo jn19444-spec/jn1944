@@ -1,134 +1,512 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>호버방셀 제작툴</title>
-  <link rel="stylesheet" href="./css/editor.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>+구구+ 팬 홈페이지</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0c10">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="+구구+">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://i.ibb.co">
+<link rel="dns-prefetch" href="https://i.ibb.co">
+<link rel="preconnect" href="https://ibb.co">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20260811b">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
-  <div class="app">
-    <header class="header">
-      <div>
-        <h1>호버방셀 제작툴</h1>
-        <p class="subtitle">GitHub Pages용 reveal 호버방셀을 만들고, 리포에 바로 커밋할 HTML로 내보냅니다.</p>
+
+<!-- 상단 헤더 -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <button id="homeBtn" class="brand-name-btn">+구구+</button>
+    </div>
+    <div class="topbar-actions">
+      <div class="notice-menu-wrap">
+        <button id="noticeMenuBtn" class="btn btn-ghost">📢 공지함</button>
+        <div id="noticeDropdown" class="notice-dropdown hidden"></div>
       </div>
-      <div class="header-actions">
-        <button type="button" id="btn-reset" class="btn btn-ghost">초기화</button>
-      </div>
-    </header>
-
-    <main class="layout">
-      <aside class="panel controls">
-        <section class="section">
-          <h2>이미지</h2>
-          <label class="field">
-            <span>표지 (호버 전)</span>
-            <input type="file" id="overlay-input" accept="image/*">
-          </label>
-          <label class="field">
-            <span>공개 (호버 후)</span>
-            <input type="file" id="base-input" accept="image/*">
-          </label>
-          <p class="hint">위·아래 이미지 크기가 다르면 미리보기에서 위치를 맞춰 주세요.</p>
-        </section>
-
-        <section class="section">
-          <h2>테마 프리셋</h2>
-          <div class="theme-row" id="theme-row">
-            <button type="button" class="theme-tab" data-theme="romance">로맨스</button>
-            <button type="button" class="theme-tab" data-theme="night">나이트</button>
-            <button type="button" class="theme-tab" data-theme="fairy">페어리</button>
-            <button type="button" class="theme-tab" data-theme="vintage">빈티지</button>
-          </div>
-          <p class="hint">테마를 누르면 아래 애니메이션·효과·색상이 한 번에 세팅돼요. 슬라이더를 직접 만지면 커스텀으로 바뀝니다.</p>
-        </section>
-
-        <section class="section">
-          <h2>위치 조절</h2>
-          <div class="layer-tabs" role="tablist">
-            <button type="button" class="layer-tab active" data-layer="overlay">표지</button>
-            <button type="button" class="layer-tab" data-layer="base">공개</button>
-          </div>
-          <div class="sliders" id="adjust-sliders"></div>
-        </section>
-
-        <section class="section">
-          <h2>공개 애니메이션</h2>
-          <label class="field">
-            <span>호버(탭) 시 전환 방식</span>
-            <select id="reveal-mode">
-              <option value="fade">소프트 페이드 (기본)</option>
-              <option value="zoomblur">줌 + 블러</option>
-              <option value="slide">슬라이드</option>
-              <option value="wipe">와이프</option>
-              <option value="flip3d">3D 플립</option>
-            </select>
-          </label>
-        </section>
-
-        <section class="section">
-          <h2>효과</h2>
-          <label class="check"><input type="checkbox" id="fx-float" checked> 둥둥 떠다니기</label>
-          <label class="check"><input type="checkbox" id="fx-shine" checked> 빛 반사 (shine)</label>
-          <label class="check"><input type="checkbox" id="fx-glow"> 글로우</label>
-          <label class="check"><input type="checkbox" id="fx-sparks" checked> 반짝 파티클</label>
-          <label class="check"><input type="checkbox" id="fx-tilt"> 3D 마우스 틸트 (PC 전용)</label>
-          <label class="field">
-            <span>파티클 모양</span>
-            <select id="particle-shape">
-              <option value="star">별</option>
-              <option value="heart">하트</option>
-              <option value="flower">꽃</option>
-              <option value="bubble">버블</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>포인트 컬러 (글로우·파티클)</span>
-            <input type="color" id="accent-color" value="#ffd66b">
-          </label>
-          <label class="field">
-            <span>효과 강도 <strong id="intensity-value">60</strong></span>
-            <input type="range" id="fx-intensity" min="0" max="100" value="60">
-          </label>
-          <label class="field">
-            <span>효과 속도 <strong id="speed-value">100</strong>%</span>
-            <input type="range" id="fx-speed" min="50" max="200" value="100">
-          </label>
-          <label class="field">
-            <span>모서리 둥글기 <strong id="radius-value">22</strong>px</span>
-            <input type="range" id="border-radius" min="0" max="48" value="22">
-          </label>
-        </section>
-
-        <section class="section">
-          <h2>내보내기</h2>
-          <div class="export-mode">
-            <label class="radio"><input type="radio" name="export-mode" value="embedded" checked> 이미지 포함 HTML (GitHub에 파일 1개만)</label>
-            <label class="radio"><input type="radio" name="export-mode" value="files"> 이미지 분리 (repo에 html + webp 2장)</label>
-          </div>
-          <div class="export-actions">
-            <button type="button" id="btn-copy-html" class="btn">HTML 복사</button>
-            <button type="button" id="btn-download-html" class="btn btn-secondary">HTML 다운로드</button>
-          </div>
-          <p class="hint">"이미지 포함 HTML"을 다운로드해서 리포에 그대로 커밋하면 GitHub Pages에서 바로 보여요. "이미지 분리"를 고르면 html + webp 2장이 따로 나오니 함께 올리세요.</p>
-          <textarea id="export-output" readonly rows="8" placeholder="내보낸 코드가 여기 표시됩니다."></textarea>
-        </section>
-      </aside>
-
-      <section class="panel preview-panel">
-        <div class="preview-toolbar">
-          <span>미리보기</span>
-          <span class="preview-hint">PC: 마우스 올리기 · 모바일: 탭</span>
-        </div>
-        <div class="preview-stage" id="preview-stage">
-          <p class="placeholder" id="preview-placeholder">표지·공개 이미지를 업로드하면 미리보기가 표시됩니다.</p>
-          <div id="preview-mount" hidden></div>
-        </div>
-      </section>
-    </main>
+      <span id="whoami" class="whoami"></span>
+      <button id="nicknameBtn" class="btn btn-ghost hidden">✏ 닉네임</button>
+      <button id="adminMenuBtn" class="btn btn-ghost hidden">🛠 관리자 메뉴 <span id="adminMenuPendingBadge" class="pending-badge hidden"></span></button>
+      <button id="signupBtn" class="btn btn-ghost">회원가입</button>
+      <button id="loginBtn" class="btn btn-ghost">로그인</button>
+      <button id="logoutBtn" class="btn btn-ghost hidden">로그아웃</button>
+    </div>
   </div>
+  <nav id="topMenuBar" class="top-menu-bar hidden"></nav>
+</header>
 
-  <script type="module" src="./js/app.js"></script>
+<!-- 생방송 중 상단 배너 (관리자가 켜거나, 자동 감지됐을 때만 보임) -->
+<a id="liveTopBanner" href="#" target="_blank" rel="noopener noreferrer" class="live-top-banner hidden">
+  <span class="live-dot"></span>
+  <span id="liveTopBannerText">지금 라이브 중</span>
+  <span class="live-arrow">방송 보러가기 →</span>
+</a>
+
+<div class="layout">
+
+  <!-- 좌측 사이드바 -->
+  <aside class="sidebar">
+    <div class="profile-card">
+      <div class="profile-avatar" id="profileAvatar">🐦</div>
+      <div class="profile-title" id="profileTitle">+구구+</div>
+      <div class="profile-sub" id="profileSub">개인 팬 아카이브 홈페이지</div>
+    </div>
+
+    <!-- 생방송 중 사이드바 배지 -->
+    <a id="liveSidebarBadge" href="#" target="_blank" rel="noopener noreferrer" class="live-sidebar-badge hidden">
+      <span class="live-dot"></span>
+      <span id="liveSidebarBadgeText">지금 라이브 중</span>
+    </a>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="제목/내용 검색">
+      <button id="searchBtn" class="btn btn-ghost">🔍</button>
+    </div>
+
+    <nav id="boardTree" class="board-tree"></nav>
+  </aside>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="content">
+
+    <!-- 목록 뷰 -->
+    <section id="listView">
+      <!-- 메인화면 대시보드 (게시판 미선택 시에만 보임) -->
+      <div id="homeDashboard" class="home-dashboard hidden">
+        <section class="home-section">
+          <h3 class="home-section-title">📋 게시판 바로가기</h3>
+          <div id="boardShortcuts" class="board-shortcut-grid"></div>
+        </section>
+        <section class="home-section">
+          <h3 class="home-section-title">🕒 최근 게시글</h3>
+          <div id="recentPosts" class="post-list"></div>
+          <div id="recentPostsEmpty" class="empty-state hidden"><p>아직 게시글이 없어요.</p></div>
+        </section>
+      </div>
+
+      <div id="listContentHeader" class="content-header">
+        <h2 id="currentBoardName">게시판을 선택하세요</h2>
+        <button id="writeBtn" class="btn btn-primary hidden">글쓰기</button>
+      </div>
+      <div id="postList" class="post-list"></div>
+      <div id="emptyState" class="empty-state hidden">
+        <p>아직 게시글이 없어요.</p>
+      </div>
+      <div id="pagination" class="pagination hidden"></div>
+    </section>
+
+    <!-- 글쓰기 뷰 -->
+    <section id="writeView" class="hidden">
+      <div class="content-header">
+        <h2><span id="writeViewTitle">글쓰기</span> <span id="writeBoardLabel" class="board-label"></span></h2>
+      </div>
+      <form id="postForm" class="post-form">
+        <input type="text" id="postTitle" placeholder="제목" required>
+        <textarea id="postContent" placeholder="내용을 입력하세요" rows="8" required></textarea>
+        <div class="image-upload-box">
+          <label for="postImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지/움짤 추가</label>
+          <input type="file" id="postImageFiles" accept="image/*" multiple class="hidden">
+          <span id="imageUploadStatus" class="image-upload-status hidden"></span>
+          <div id="imagePreviewList" class="image-preview-list"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
+          <button type="submit" class="btn btn-primary">등록하기</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 상세 뷰 -->
+    <section id="detailView" class="hidden">
+      <button id="backBtn" class="btn btn-ghost back-btn">← 목록으로</button>
+      <article id="postDetail" class="post-detail"></article>
+    </section>
+
+    <!-- 사진 갤러리 뷰 (게시글에 올라온 사진만 모아서 보기) -->
+    <section id="galleryView" class="hidden">
+      <div class="content-header">
+        <h2>📷 사진 갤러리</h2>
+      </div>
+      <div id="galleryGrid" class="gallery-grid"></div>
+      <div id="galleryEmpty" class="empty-state hidden"><p>아직 사진이 없어요.</p></div>
+    </section>
+
+    <!-- 관리자 메뉴 (게시글 목록처럼 큰 화면으로 표시) -->
+    <section id="adminView" class="hidden">
+      <button id="adminBackBtn" class="btn btn-ghost back-btn">← 목록으로</button>
+      <div class="content-header">
+        <h2>🛠 관리자 메뉴</h2>
+      </div>
+
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="members">👥 회원 관리 <span id="pendingBadge" class="pending-badge hidden"></span></button>
+        <button class="admin-tab" data-tab="posts">✅ 게시글 관리</button>
+        <button class="admin-tab" data-tab="boards">📄 게시판 관리</button>
+        <button class="admin-tab" data-tab="tiers">👑 회원 등급</button>
+        <button class="admin-tab" data-tab="topmenu">🔗 상단 메뉴</button>
+        <button class="admin-tab" data-tab="music">🎵 음악 관리</button>
+        <button class="admin-tab" data-tab="stats">📊 통계</button>
+        <button class="admin-tab" data-tab="site">⚙ 사이트 설정</button>
+        <button class="admin-tab" data-tab="live">🔴 생방송 설정</button>
+        <button class="admin-tab" data-tab="images">🔄 이미지 재업로드</button>
+        <button class="admin-tab" data-tab="backup">💾 전체 백업</button>
+      </div>
+
+      <!-- 회원 관리 -->
+      <div id="adminTabMembers" class="admin-panel">
+        <p class="hint-text">승인대기 회원은 위에 먼저 나와요. 삭제하면 그 계정으로 다시 로그인할 수 없어요.</p>
+        <div class="member-toolbar">
+          <input type="text" id="memberSearchInput" placeholder="🔍 아이디로 검색">
+          <div class="member-filter-tabs">
+            <button class="member-filter-tab active" data-filter="all">전체</button>
+            <button class="member-filter-tab" data-filter="pending">승인대기</button>
+            <button class="member-filter-tab" data-filter="approved">승인됨</button>
+          </div>
+        </div>
+        <div class="member-summary">
+          <span id="memberSummaryText" class="hint-text" style="margin:0;"></span>
+          <button id="approveAllBtn" class="btn btn-ghost btn-sm hidden">✓ 대기 회원 전체 승인</button>
+        </div>
+        <div id="memberList" class="manage-list"></div>
+      </div>
+
+      <!-- 게시글 일괄 관리 -->
+      <div id="adminTabPosts" class="admin-panel hidden">
+        <p class="hint-text">체크박스로 여러 게시글을 골라 한번에 이동/삭제하거나 고정할 수 있어요. 📌 고정한 글은 목록 맨 위에 표시돼요.</p>
+        <div class="post-admin-toolbar">
+          <input type="text" id="postAdminSearchInput" placeholder="🔍 제목 검색">
+          <select id="postAdminBoardFilter" class="admin-select"><option value="">전체 게시판</option></select>
+        </div>
+        <div class="post-admin-bulkbar">
+          <label class="checkbox-label"><input type="checkbox" id="postAdminSelectAll"> 전체선택</label>
+          <span id="postAdminSelectedCount" class="hint-text" style="margin:0;"></span>
+          <div class="post-admin-bulk-actions">
+            <select id="postAdminMoveSelect" class="admin-select"></select>
+            <button id="postAdminMoveBtn" class="btn btn-ghost btn-sm">선택 이동</button>
+            <button id="postAdminPinBtn" class="btn btn-ghost btn-sm">📌 선택 고정</button>
+            <button id="postAdminUnpinBtn" class="btn btn-ghost btn-sm">고정 해제</button>
+            <button id="postAdminDeleteBtn" class="btn btn-ghost btn-sm danger-btn">선택 삭제</button>
+          </div>
+        </div>
+        <div id="postAdminList" class="manage-list"></div>
+      </div>
+
+      <!-- 게시판 관리 -->
+      <div id="adminTabBoards" class="admin-panel hidden">
+        <div class="manage-add-row">
+          <input type="text" id="manageNameInput" placeholder="이름 입력 (예: 잡담)">
+          <select id="manageVisibilitySelect" class="admin-select">
+            <option value="public" selected>🌐 전체공개</option>
+            <option value="members">👥 회원공개 (로그인하면 누구나)</option>
+            <option value="private">🔒 비공개 (권한 받은 회원만)</option>
+          </select>
+          <div class="manage-add-buttons">
+            <button id="manageAddBoardBtn" class="btn btn-ghost">📄 게시판 추가</button>
+            <button id="manageAddGroupBtn" class="btn btn-ghost">T 그룹 제목 추가</button>
+            <button id="manageAddDividerBtn" class="btn btn-ghost">⋯ 구분선 추가</button>
+          </div>
+        </div>
+        <div id="manageList" class="manage-list"></div>
+      </div>
+
+      <!-- 회원 등급 -->
+      <div id="adminTabTiers" class="admin-panel hidden">
+        <p class="hint-text">등급을 만들면, "👥 회원공개" 게시판마다 "이 등급 이상만 볼 수 있음"을 정할 수 있어요. 회원마다 등급은 "👥 회원 관리" 탭에서 배정해요. 등급이 없으면 예전처럼 로그인만 하면 누구나 볼 수 있어요.</p>
+        <div class="manage-add-row">
+          <input type="text" id="memberTierNameInput" placeholder="등급 이름 입력 (예: 우수회원)">
+          <div class="manage-add-buttons">
+            <button id="memberTierAddBtn" class="btn btn-ghost">👑 등급 추가</button>
+          </div>
+        </div>
+        <div id="memberTiersList" class="manage-list"></div>
+      </div>
+
+      <!-- 상단 메뉴 관리 -->
+      <div id="adminTabTopmenu" class="admin-panel hidden">
+        <p class="hint-text">상단바에 메뉴 버튼을 추가할 수 있어요. <b>링크를 입력하면</b> 클릭 시 그 주소로 바로 이동하고, <b>링크를 비워두면</b> 아래에 적은 내용이 게시글처럼 팝업으로 열려요. <b>상위 메뉴</b>를 고르면 그 메뉴에 마우스를 올렸을 때(또는 눌렀을 때) 드롭다운으로 나와요.</p>
+        <div class="manage-add-row">
+          <input type="text" id="topMenuNameInput" placeholder="메뉴 이름 (예: 공식 트위터, 이벤트 안내)">
+          <select id="topMenuParentSelect" class="admin-select">
+            <option value="">최상위 메뉴</option>
+          </select>
+          <input type="text" id="topMenuUrlInput" placeholder="링크 URL (선택 - 비워두면 아래 내용이 표시돼요)">
+          <textarea id="topMenuContentInput" placeholder="링크가 없을 때 보여줄 내용 (선택)" rows="3"></textarea>
+          <div class="image-upload-box">
+            <label for="topMenuImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지 추가</label>
+            <input type="file" id="topMenuImageFiles" accept="image/*" multiple class="hidden">
+            <span id="topMenuImageStatus" class="image-upload-status hidden"></span>
+            <div id="topMenuImagePreviewList" class="image-preview-list"></div>
+          </div>
+          <div class="manage-add-buttons">
+            <button id="topMenuSaveBtn" class="btn btn-ghost">➕ 메뉴 추가</button>
+            <button id="topMenuCancelEditBtn" class="btn btn-ghost hidden">취소</button>
+          </div>
+        </div>
+        <div id="topMenuList" class="manage-list"></div>
+      </div>
+
+      <!-- 음악 관리 -->
+      <div id="adminTabMusic" class="admin-panel hidden">
+        <p class="hint-text">여기서 올린 곡이 사이트 오른쪽 음악 플레이어 목록에 나와요. 방문자는 목록에서 골라 듣기만 할 수 있어요.</p>
+        <div class="manage-add-row">
+          <input type="text" id="musicTitleInput" placeholder="곡 제목 (필수)">
+          <input type="text" id="musicArtistInput" placeholder="아티스트 (선택)">
+          <div class="image-upload-box">
+            <label for="musicFileInput" class="btn btn-ghost image-upload-label">🎵 음악 파일 선택 (mp3 등)</label>
+            <input type="file" id="musicFileInput" accept="audio/*" class="hidden">
+            <span id="musicUploadStatus" class="image-upload-status hidden"></span>
+            <span id="musicFileName" class="hint-text"></span>
+          </div>
+          <div class="manage-add-buttons">
+            <button id="musicSaveBtn" class="btn btn-ghost">➕ 곡 추가</button>
+            <button id="musicCancelEditBtn" class="btn btn-ghost hidden">취소</button>
+          </div>
+        </div>
+        <div id="musicAdminList" class="manage-list"></div>
+      </div>
+
+      <!-- 통계 -->
+      <div id="adminTabStats" class="admin-panel hidden">
+        <div id="statsSummaryGrid" class="stats-grid"></div>
+        <h3 class="admin-subtitle">게시판별 글 수</h3>
+        <div id="statsBoardBreakdown" class="manage-list"></div>
+        <h3 class="admin-subtitle">조회수 TOP 5</h3>
+        <div id="statsTopPosts" class="manage-list"></div>
+      </div>
+
+      <!-- 사이트 설정 -->
+      <div id="adminTabSite" class="admin-panel hidden">
+        <p class="hint-text">사이드바 프로필 카드에 보이는 문구를 코드 수정 없이 바로 바꿀 수 있어요.</p>
+        <div class="site-settings-form">
+          <label class="settings-label">프로필 이모지</label>
+          <input type="text" id="siteAvatarInput" placeholder="🐦" maxlength="4">
+          <label class="settings-label">사이트 이름</label>
+          <input type="text" id="siteNameInput" placeholder="+구구+">
+          <label class="settings-label">소개 문구</label>
+          <input type="text" id="siteTaglineInput" placeholder="개인 팬 아카이브 홈페이지">
+          <button id="siteSettingsSaveBtn" class="btn btn-primary settings-save-btn">저장</button>
+          <span id="siteSettingsStatus" class="hint-text" style="margin:8px 0 0;"></span>
+        </div>
+      </div>
+
+      <!-- 생방송 설정 -->
+      <div id="adminTabLive" class="admin-panel hidden">
+        <p class="hint-text">방송 시작하면 켜고, 끝나면 꺼주세요. "자동 감지"를 켜두면 SOOP에서 방송 중인지 자동으로 확인을 시도하는데, SOOP 쪽 사정으로 안 될 수도 있어요 — 그럴 땐 수동 켜기/끄기가 항상 확실하게 동작해요.</p>
+        <div class="site-settings-form">
+          <label class="settings-label">
+            <input type="checkbox" id="liveManualToggle"> 지금 라이브예요 (수동으로 켜기/끄기)
+          </label>
+
+          <label class="settings-label" style="margin-top:14px;">
+            <input type="checkbox" id="liveAutoDetectToggle"> 자동 감지 시도하기
+          </label>
+          <label class="settings-label">SOOP BJ 아이디 (자동 감지용)</label>
+          <input type="text" id="liveBjIdInput" placeholder="예: jin1944">
+
+          <label class="settings-label">방송 제목 (선택, 라이브 배너에 표시)</label>
+          <input type="text" id="liveTitleInput" placeholder="예: 오늘도 방셀!">
+          <label class="settings-label">시청 링크</label>
+          <input type="text" id="liveUrlInput" placeholder="https://www.sooplive.com/jin1944">
+
+          <label class="settings-label" style="margin-top:14px;">표시 위치</label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="liveShowTopCheck"> 상단 배너
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="liveShowSidebarCheck"> 사이드바
+          </label>
+
+          <button id="liveSettingsSaveBtn" class="btn btn-primary settings-save-btn">저장</button>
+          <span id="liveSettingsStatus" class="hint-text" style="margin:8px 0 0;"></span>
+        </div>
+      </div>
+
+      <!-- 이미지 재업로드 -->
+      <div id="adminTabImages" class="admin-panel hidden">
+        <p class="hint-text">기존 글의 이미지(외부 링크로 저장된 것 + 리사이즈 기능 넣기 전에 올린 사진 모두)를 자동으로 다운받아 리사이즈한 뒤 ImgBB에 다시 올려요. 한 번 처리된 글은 표시해두니 다시 눌러도 중복 처리되지 않아요.</p>
+        <button id="migrateImagesBtn" class="btn btn-ghost">🔄 전체 게시글 이미지 재업로드 시작</button>
+        <div id="migrateStatus" class="hint-text"></div>
+        <div id="migrateLog" class="manage-list"></div>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">이미지 미리 받아두기</h3>
+        </div>
+        <p class="hint-text">지금 이 브라우저에 모든 게시글 사진을 미리 다운받아 저장해둬요. 강제 새로고침 등으로 저장된 사진이 지워졌을 때, 또는 인터넷이 느릴 때 한 번 눌러두면 이후엔 바로바로 보여요. (⚠ 이 브라우저에만 적용돼요 — 다른 사람의 화면에는 영향 없어요.)</p>
+        <button id="prewarmImagesBtn" class="btn btn-ghost">🖼 이미지 미리 받기</button>
+        <div id="prewarmStatus" class="hint-text"></div>
+      </div>
+
+      <!-- 전체 백업 -->
+      <div id="adminTabBackup" class="admin-panel hidden">
+        <p class="hint-text">모든 게시글과 게시판 구조를 JSON 파일로 내려받아요. 링크만 들어있어서 가볍지만, 나중에 ImgBB 링크가 죽으면 이 백업도 같이 못 쓰게 돼요.</p>
+        <button id="backupBtn" class="btn btn-ghost">💾 빠른 백업 (JSON, 링크만)</button>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">이미지 포함 진짜 백업 (zip)</h3>
+        </div>
+        <p class="hint-text">사진 파일 자체를 전부 다운받아서 zip 하나로 묶어요. ImgBB 계정에 무슨 일이 생겨도 이 zip만 있으면 복원할 수 있어요. 사진이 많으면 시간이 좀 걸려요.</p>
+        <button id="backupZipBtn" class="btn btn-ghost">📦 이미지 포함 전체 백업 (zip)</button>
+        <div id="backupZipStatus" class="hint-text"></div>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">백업으로 복원</h3>
+        </div>
+        <p class="hint-text">위에서 만든 zip 백업 파일을 골라서 복원해요. <b>이미 있는 게시판/게시글은 안 건드리고, 없는 것만 새로 만들어요</b>(덮어쓰기 없음). 사진은 전부 새로 ImgBB에 다시 올라가요.</p>
+        <input type="file" id="restoreZipInput" accept=".zip" class="hidden">
+        <label for="restoreZipInput" class="btn btn-ghost">📂 백업 zip 파일 선택</label>
+        <span id="restoreZipFileName" class="hint-text"></span>
+        <button id="restoreZipBtn" class="btn btn-ghost" disabled>♻ 이 백업으로 복원하기</button>
+        <div id="restoreZipStatus" class="hint-text"></div>
+        <div id="restoreZipLog" class="manage-list"></div>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">📥 오프라인 버전 백업 가져오기</h3>
+        </div>
+        <p class="hint-text">오프라인(이 기기 전용) 버전에서 받은 백업 파일(<code>gugu-offline-backup-*.json</code>)을 여기로 가져와서 이 온라인 사이트로 옮길 수 있어요. 사진은 자동으로 ImgBB에 새로 올라가요. <b>이미 있는 게시판은 이름이 같으면 합치고, 게시글은 항상 새로 추가</b>돼요(중복 방지를 위해 같은 파일을 두 번 가져오지 않도록 주의해주세요).</p>
+        <input type="file" id="offlineImportInput" accept=".json" class="hidden">
+        <label for="offlineImportInput" class="btn btn-ghost">📂 오프라인 백업 파일 선택</label>
+        <span id="offlineImportFileName" class="hint-text"></span>
+        <button id="offlineImportBtn" class="btn btn-ghost" disabled>📥 이 파일 가져오기</button>
+        <div id="offlineImportStatus" class="hint-text"></div>
+        <div id="offlineImportLog" class="manage-list"></div>
+
+        <div class="manage-header" style="margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">📤 오프라인 버전으로 내보내기</h3>
+        </div>
+        <p class="hint-text">반대로, 지금 이 온라인 사이트의 글을 <b>오프라인(이 기기 전용) 버전으로 옮길 때</b> 쓰는 파일을 만들어요. 사진을 전부 다시 다운받아서 파일 안에 그대로 넣기 때문에 시간이 좀 걸리고 파일 용량도 클 수 있어요. 다 만들어지면, 오프라인 버전 관리 메뉴 → 백업/복원 → "백업 파일 선택"에서 이 파일을 골라 복원하면 돼요.</p>
+        <button id="exportForOfflineBtn" class="btn btn-ghost">📤 오프라인용 백업 만들기</button>
+        <div id="exportForOfflineStatus" class="hint-text"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 로그인 모달 -->
+<div id="loginModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>로그인</h3>
+    <input type="text" id="loginEmail" placeholder="아이디" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="비밀번호" autocomplete="current-password">
+    <p id="loginError" class="error-text hidden"></p>
+    <div class="form-actions">
+      <button id="loginCancelBtn" class="btn btn-ghost">닫기</button>
+      <button id="loginSubmitBtn" class="btn btn-primary">로그인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 회원가입 모달 -->
+<div id="signupModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>회원가입</h3>
+    <input type="text" id="signupEmail" placeholder="아이디 (영문/숫자/밑줄, 3~20자)" autocomplete="username">
+    <input type="password" id="signupPassword" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+    <p id="signupError" class="error-text hidden"></p>
+    <div class="form-actions">
+      <button id="signupCancelBtn" class="btn btn-ghost">닫기</button>
+      <button id="signupSubmitBtn" class="btn btn-primary">가입하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 게시글 이동 모달 -->
+<div id="moveModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>게시판 이동</h3>
+    <select id="moveBoardSelect"></select>
+    <div class="form-actions">
+      <button id="moveCancelBtn" class="btn btn-ghost">취소</button>
+      <button id="moveConfirmBtn" class="btn btn-primary">이동하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 상단 메뉴 내용 보기 (링크가 없는 메뉴를 눌렀을 때) -->
+<div id="topMenuDetailModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="topMenuDetailTitle"></h3>
+    <div id="topMenuDetailImages"></div>
+    <div id="topMenuDetailContent" class="topmenu-detail-content"></div>
+    <div class="form-actions">
+      <button id="topMenuDetailCloseBtn" class="btn btn-ghost">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 이미지 확대보기 -->
+<div id="lightbox" class="lightbox hidden">
+  <button id="lightboxClose" class="lightbox-close" title="닫기">✕</button>
+  <button id="lightboxPrev" class="lightbox-nav lightbox-prev hidden" title="이전">‹</button>
+  <span id="lightboxSpinner" class="img-spinner hidden"></span>
+  <img id="lightboxImg" src="" alt="">
+  <button id="lightboxNext" class="lightbox-nav lightbox-next hidden" title="다음">›</button>
+  <button id="lightboxCaption" class="lightbox-caption hidden" title="원본 글로 이동"></button>
+</div>
+
+<!-- 음악 플레이어 (사이트 오른쪽에 떠 있어요) -->
+<div id="musicWidget" class="music-widget hidden">
+  <button id="musicToggleBtn" class="music-toggle-btn" title="음악">
+    <span id="musicToggleIcon" class="music-toggle-icon">🎵</span>
+  </button>
+  <div id="musicPanel" class="music-panel hidden">
+    <div class="music-panel-header">
+      <span class="music-panel-title">🎵 음악</span>
+      <button id="musicPanelCloseBtn" class="music-panel-close" title="닫기">✕</button>
+    </div>
+    <div class="music-now-playing">
+      <div class="music-now-title" id="musicNowTitle">재생 중인 곡이 없어요</div>
+      <div class="music-now-artist" id="musicNowArtist"></div>
+    </div>
+    <div class="music-progress-row">
+      <span id="musicCurTime" class="music-time">0:00</span>
+      <input type="range" id="musicSeekBar" class="music-seek" min="0" max="100" value="0" step="0.1">
+      <span id="musicDurTime" class="music-time">0:00</span>
+    </div>
+    <div class="music-controls">
+      <button id="musicShuffleBtn" class="music-ctrl-btn music-mode-btn" title="랜덤재생 켜기">🔀</button>
+      <button id="musicPrevBtn" class="music-ctrl-btn" title="이전 곡">⏮</button>
+      <button id="musicPlayBtn" class="music-ctrl-btn music-play-btn" title="재생/일시정지">▶</button>
+      <button id="musicNextBtn" class="music-ctrl-btn" title="다음 곡">⏭</button>
+      <button id="musicRepeatBtn" class="music-ctrl-btn music-mode-btn" title="반복 안 함">🔁</button>
+      <span class="music-volume-wrap">
+        <span class="music-vol-icon">🔊</span>
+        <input type="range" id="musicVolumeBar" class="music-volume" min="0" max="1" value="0.7" step="0.01">
+      </span>
+    </div>
+    <div id="musicPlaylist" class="music-playlist"></div>
+    <div id="musicPlaylistEmpty" class="music-playlist-empty hidden">아직 등록된 곡이 없어요.</div>
+  </div>
+</div>
+<audio id="musicAudio" preload="metadata"></audio>
+
+<script type="module" src="firebase-config.js?v=20260811b"></script>
+<script type="module" src="app.js?v=20260811b"></script>
+<script>
+  // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
+  // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
+  // 주의: 이 스크립트는 반드시 위의 style.css/app.js 등 상대경로 파일들이 전부 선언된
+  // "다음"에 실행돼야 해요. 먼저 실행해서 주소(location)를 바꿔버리면, 그 뒤로 이어지는
+  // 상대경로 리소스들이 엉뚱한 위치(예: /board/style.css)를 가리키게 되어 CSS/JS가
+  // 통째로 안 불러와지는 문제가 생겨요.
+  (function () {
+    var redirect = sessionStorage.getItem("gr-redirect-path");
+    if (redirect) {
+      sessionStorage.removeItem("gr-redirect-path");
+      var segments = location.pathname.split("/").filter(Boolean);
+      var base = segments.length ? "/" + segments[0] : "";
+      history.replaceState(null, "", base + redirect);
+    }
+  })();
+</script>
 </body>
 </html>
