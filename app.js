@@ -2092,7 +2092,7 @@ async function openPost(postId, opts = {}) {
 
     el("deletePostBtn").addEventListener("click", async () => {
       if (!confirm("이 게시글을 삭제할까요?")) return;
-      tryDeleteImgbbImages(p.imageDeleteUrls);
+      tryDeleteImgbbImages([...(Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls : []), ...getHoverCellDeleteUrls(p)]);
       await deleteDoc(ref);
       invalidateBoardCache(p.boardId);
       showListView();
@@ -3848,12 +3848,25 @@ function tryDeleteImgbbImages(deleteUrls) {
   });
 }
 
+// 채록소가 저장한 호버방셀의 ImgBB 삭제 URL도 게시글 삭제 때 함께 정리해요.
+function getHoverCellDeleteUrls(p) {
+  try {
+    const raw = p?.hoverCellDeleteUrls || [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw === "string") { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr.filter(Boolean) : []; }
+    return [];
+  } catch (e) { return []; }
+}
+
 // 게시글 삭제 여러 곳(알림함, 게시글 관리 일괄삭제 등)에서 공통으로 써요.
 // 문서를 미리 한 번 읽어서 imageDeleteUrls를 챙긴 다음 지워요.
 async function deletePostAndImages(postId) {
   try {
     const snap = await getDoc(doc(db, "posts", postId));
-    if (snap.exists()) tryDeleteImgbbImages(snap.data().imageDeleteUrls);
+    if (snap.exists()) {
+      const p = snap.data();
+      tryDeleteImgbbImages([...(Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls : []), ...getHoverCellDeleteUrls(p)]);
+    }
   } catch (e) {}
   await deleteDoc(doc(db, "posts", postId));
 }
@@ -3861,12 +3874,38 @@ async function deletePostAndImages(postId) {
 // 본문 안에 [사진1] 같은 표시가 있으면(채록소 확장프로그램이 자동으로 넣어줌) 그 자리에
 // 실제 사진을 끼워 넣어요. 표시가 없거나 번호가 사진 개수를 벗어나면(예: 사진을 나중에 지움)
 // 그 사진들은 맨 아래에 몰아서 붙여요.
+function parseHoverCells(p) {
+  try {
+    const raw = p?.hoverCellsJson;
+    const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function renderHoverCell(cell, index) {
+  const overlay = String(cell?.overlayUrl || "");
+  const base = String(cell?.baseUrl || "");
+  if (!overlay || !base) return "";
+  const reveal = ["fade","zoomblur","slide","wipe","flip3d","iris","drop"].includes(cell?.revealMode) ? cell.revealMode : "fade";
+  const radius = Math.max(0, Math.min(80, Number(cell?.borderRadius) || 22));
+  const speed = Math.max(50, Math.min(200, Number(cell?.speed) || 100));
+  const intensity = Math.max(0, Math.min(100, Number(cell?.intensity) || 60));
+  const accent = /^#[0-9a-f]{6}$/i.test(String(cell?.accentColor || "")) ? cell.accentColor : "#ffd66b";
+  return `<div class="hc-post-wrap" data-hc-index="${index}"><div class="hc-post hc-post-${escapeHtml(reveal)}" style="--hc-dur:${(100 / speed).toFixed(3)};--hc-i:${(intensity / 100).toFixed(2)};--hc-accent:${escapeHtml(accent)};border-radius:${radius}px;">` +
+    `<img class="hc-post-base" src="${escapeHtml(base)}" alt="" loading="lazy" decoding="async">` +
+    `<img class="hc-post-overlay" src="${escapeHtml(overlay)}" alt="" loading="lazy" decoding="async">` +
+    `</div></div>`;
+}
+
+// 본문 안에 [사진1], [호버방셀1] 표시가 있으면 해당 위치에 각각 렌더링합니다.
 function renderContentWithImages(p, images) {
-  const parts = String(p.content || "").split(/(\[사진\d+\])/g);
+  const hoverCells = parseHoverCells(p);
+  const parts = String(p.content || "").split(/(\[사진\d+\]|\[호버방셀\d+\])/g);
   const usedIdx = new Set();
+  const usedHover = new Set();
   let html = "";
   parts.forEach(part => {
-    const m = part.match(/^\[사진(\d+)\]$/);
+    let m = part.match(/^\[사진(\d+)\]$/);
     if (m) {
       const idx = Number(m[1]) - 1;
       if (idx >= 0 && idx < images.length && !usedIdx.has(idx)) {
@@ -3874,7 +3913,15 @@ function renderContentWithImages(p, images) {
         html += imgWrap(images[idx], { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${idx}" loading="lazy" decoding="async"` });
         return;
       }
-      // 번호가 유효하지 않으면(사진이 지워졌거나 등) 표시를 그냥 글자로 보여줘요.
+    }
+    m = part.match(/^\[호버방셀(\d+)\]$/);
+    if (m) {
+      const idx = Number(m[1]) - 1;
+      if (idx >= 0 && idx < hoverCells.length && !usedHover.has(idx)) {
+        usedHover.add(idx);
+        html += renderHoverCell(hoverCells[idx], idx);
+        return;
+      }
     }
     html += escapeHtml(part);
   });
@@ -3883,7 +3930,10 @@ function renderContentWithImages(p, images) {
     if (usedIdx.has(i)) return;
     html += imgWrap(u, { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${i}" loading="lazy" decoding="async"` });
   });
-
+  hoverCells.forEach((cell, i) => {
+    if (usedHover.has(i)) return;
+    html += renderHoverCell(cell, i);
+  });
   return html;
 }
 
