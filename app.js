@@ -539,7 +539,16 @@ const ADMIN_TAB_LOADERS = {
   stats: loadStats,
   site: fillSiteSettingsForm,
   live: fillLiveSettingsForm,
+  hovercell: loadHovercellTab,
 };
+
+// 호버셀 제작 툴은 iframe이라 탭을 실제로 열 때만 불러와요(안 그러면 방문할 때마다 매번 불필요하게 로딩됨).
+// 배포 위치가 도메인 루트든(Firebase/Vercel) GitHub Pages 저장소 하위 경로든 상관없이
+// 항상 올바른 위치를 가리키도록, 라우팅에서 쓰는 것과 같은 BASE_PATH를 그대로 재사용해요.
+function loadHovercellTab() {
+  const frame = el("hovercellFrame");
+  if (!frame.src) frame.src = BASE_PATH + "/hovercell/index.html";
+}
 
 function activateAdminTab(tabName) {
   document.querySelectorAll(".admin-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tabName));

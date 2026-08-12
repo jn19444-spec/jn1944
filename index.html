@@ -157,6 +157,7 @@
         <button class="admin-tab" data-tab="stats">📊 통계</button>
         <button class="admin-tab" data-tab="site">⚙ 사이트 설정</button>
         <button class="admin-tab" data-tab="live">🔴 생방송 설정</button>
+        <button class="admin-tab" data-tab="hovercell">🖼 호버셀 제작</button>
         <button class="admin-tab" data-tab="images">🔄 이미지 재업로드</button>
         <button class="admin-tab" data-tab="backup">💾 전체 백업</button>
       </div>
@@ -327,6 +328,14 @@
 
           <button id="liveSettingsSaveBtn" class="btn btn-primary settings-save-btn">저장</button>
           <span id="liveSettingsStatus" class="hint-text" style="margin:8px 0 0;"></span>
+        </div>
+      </div>
+
+      <!-- 호버셀 제작 -->
+      <div id="adminTabHovercell" class="admin-panel hidden">
+        <p class="hint-text">마우스를 올리면 사진이 바뀌는 호버 방셀을 만드는 도구예요. 만든 걸 다운로드해서 게시글에 첨부하거나, HTML 코드를 복사해서 붙여넣으면 돼요.</p>
+        <div class="hovercell-frame-wrap">
+          <iframe id="hovercellFrame" class="hovercell-frame" title="호버셀 제작 툴"></iframe>
         </div>
       </div>
 
