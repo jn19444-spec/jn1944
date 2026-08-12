@@ -82,6 +82,7 @@ let didInitialRoute = false; // 첫 로딩 때 한 번만 주소창(경로)을 �
 let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) 이미지 URL 목록
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 let selectedImageDeleteUrls = []; // 위 이미지들과 같은 순서의 ImgBB 삭제용 링크(있으면). 게시글 삭제할 때 같이 정리하는 데 씀.
+let replacedImageDeleteUrls = []; // 수정 중 기존 이미지를 새 이미지로 교체했을 때, 저장 성공 후 정리할 예전 ImgBB 삭제 링크
 
 let topMenuItems = []; // Firestore "topMenus" 컬렉션 (order 오름차순)
 let topMenuImageUrls = []; // 상단메뉴 편집 폼에서 업로드된(또는 기존) 이미지 URL 목록
@@ -1663,7 +1664,41 @@ function renderImagePreviews() {
   selectedImageUrls.forEach((url, idx) => {
     const item = document.createElement("div");
     item.className = "image-preview-item";
-    item.innerHTML = `${imgWrap(selectedImageThumbUrls[idx] || url, { imgAttrs: 'loading="lazy"' })}<button type="button" class="image-preview-remove" title="삭제">✕</button>`;
+    item.innerHTML = `${imgWrap(selectedImageThumbUrls[idx] || url, { imgAttrs: 'loading="lazy"' })}
+      <button type="button" class="image-preview-replace" title="새 이미지로 교체">↻</button>
+      <button type="button" class="image-preview-remove" title="삭제">✕</button>`;
+    item.querySelector(".image-preview-replace").addEventListener("click", async () => {
+      if (!editingPostId) {
+        alert("이미지 변경은 기존 게시글을 수정할 때 사용할 수 있어요.");
+        return;
+      }
+      const input = document.createElement("input");
+      input.type = "file"; input.accept = "image/*"; input.className = "hidden";
+      document.body.appendChild(input);
+      input.addEventListener("change", async () => {
+        const file = input.files?.[0];
+        input.remove();
+        if (!file) return;
+        const oldDeleteUrl = selectedImageDeleteUrls[idx] || null;
+        const statusEl = el("imageUploadStatus");
+        statusEl.classList.remove("hidden", "error");
+        statusEl.textContent = `이미지 ${idx + 1}번을 새 이미지로 교체하는 중...`;
+        try {
+          const r = await uploadToImgBB(file);
+          if (oldDeleteUrl) replacedImageDeleteUrls.push(oldDeleteUrl);
+          selectedImageUrls[idx] = r.url;
+          selectedImageThumbUrls[idx] = r.thumbUrl;
+          selectedImageDeleteUrls[idx] = r.deleteUrl || null;
+          renderImagePreviews();
+          statusEl.textContent = "이미지를 새 주소로 교체했어요. 저장하면 게시글에도 바로 반영됩니다.";
+          setTimeout(() => statusEl.classList.add("hidden"), 2200);
+        } catch (err) {
+          statusEl.classList.add("error");
+          statusEl.textContent = `교체 실패: ${err.message}`;
+        }
+      }, { once: true });
+      input.click();
+    });
     item.querySelector(".image-preview-remove").addEventListener("click", () => {
       tryDeleteImgbbImages([selectedImageDeleteUrls[idx]]); // 미리보기에서 뺀 사진은 이미 올라간 거라 같이 정리
       selectedImageUrls.splice(idx, 1);
@@ -1679,6 +1714,7 @@ function resetImageUploadUI() {
   selectedImageUrls = [];
   selectedImageThumbUrls = [];
   selectedImageDeleteUrls = [];
+  replacedImageDeleteUrls = [];
   el("postImageFiles").value = "";
   el("imageUploadStatus").classList.add("hidden");
   renderImagePreviews();
@@ -1758,6 +1794,11 @@ el("postForm").addEventListener("submit", async (e) => {
 
     if (editingPostId) {
       await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls });
+      // 새 이미지 URL이 Firestore에 저장된 뒤에만 예전 ImgBB 이미지를 정리해요.
+      if (replacedImageDeleteUrls.length) {
+        tryDeleteImgbbImages(replacedImageDeleteUrls);
+      }
+      replacedImageDeleteUrls = [];
       invalidateBoardCache(editingPostBoardId);
       clearDraft();
       const idToReopen = editingPostId;
@@ -2068,6 +2109,7 @@ async function openPost(postId, opts = {}) {
       selectedImageThumbUrls = getThumbs(p).slice();
       // 예전 글은 imageDeleteUrls가 없을 수 있어서, 사진 개수에 맞춰 null로 채워둬요.
       selectedImageDeleteUrls = images.map((u, i) => (Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls[i] : null) || null);
+      replacedImageDeleteUrls = [];
       renderImagePreviews();
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
       currentBoard = boardOfPost || currentBoard;
