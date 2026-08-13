@@ -1,145 +1,23 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>호버방셀 제작툴</title>
-  <link rel="stylesheet" href="./css/editor.css">
-</head>
-<body>
-  <div class="app">
-    <header class="header">
-      <div>
-        <h1>호버방셀 제작툴</h1>
-        <p class="subtitle">GitHub Pages용 reveal 호버방셀을 만들고, 리포에 바로 커밋할 HTML로 내보냅니다.</p>
-      </div>
-      <div class="header-actions">
-        <button type="button" id="btn-reset" class="btn btn-ghost">초기화</button>
-      </div>
-    </header>
-
-    <main class="layout">
-      <aside class="panel controls">
-        <section class="section">
-          <h2>이미지</h2>
-          <label class="field">
-            <span>표지 (호버 전)</span>
-            <input type="file" id="overlay-input" accept="image/*">
-          </label>
-          <label class="field">
-            <span>공개 (호버 후)</span>
-            <input type="file" id="base-input" accept="image/*">
-          </label>
-          <p class="hint">위·아래 이미지 크기가 다르면 미리보기에서 위치를 맞춰 주세요.</p>
-        </section>
-
-        <section class="section">
-          <h2>테마 프리셋</h2>
-          <div class="theme-row" id="theme-row">
-            <button type="button" class="theme-tab" data-theme="romance">로맨스</button>
-            <button type="button" class="theme-tab" data-theme="night">나이트</button>
-            <button type="button" class="theme-tab" data-theme="fairy">페어리</button>
-            <button type="button" class="theme-tab" data-theme="vintage">빈티지</button>
-            <button type="button" class="theme-tab" data-theme="snow">눈꽃</button>
-            <button type="button" class="theme-tab" data-theme="neon">네온</button>
-            <button type="button" class="theme-tab" data-theme="melody">멜로디</button>
-            <button type="button" class="theme-tab" data-theme="letter">편지지</button>
-          </div>
-          <p class="hint">테마를 누르면 아래 애니메이션·효과·색상이 한 번에 세팅돼요. 슬라이더를 직접 만지면 커스텀으로 바뀝니다.</p>
-        </section>
-
-        <section class="section">
-          <h2>위치 조절</h2>
-          <div class="layer-tabs" role="tablist">
-            <button type="button" class="layer-tab active" data-layer="overlay">표지</button>
-            <button type="button" class="layer-tab" data-layer="base">공개</button>
-          </div>
-          <div class="sliders" id="adjust-sliders"></div>
-        </section>
-
-        <section class="section">
-          <h2>공개 애니메이션</h2>
-          <label class="field">
-            <span>호버(탭) 시 전환 방식</span>
-            <select id="reveal-mode">
-              <option value="fade">소프트 페이드 (기본)</option>
-              <option value="zoomblur">줌 + 블러</option>
-              <option value="slide">슬라이드</option>
-              <option value="wipe">와이프</option>
-              <option value="flip3d">3D 플립</option>
-              <option value="iris">아이리스 (원형 확장)</option>
-              <option value="drop">드롭 (아래로 떨어짐)</option>
-            </select>
-          </label>
-        </section>
-
-        <section class="section">
-          <h2>효과</h2>
-          <label class="check"><input type="checkbox" id="fx-float" checked> 둥둥 떠다니기</label>
-          <label class="check"><input type="checkbox" id="fx-shine" checked> 빛 반사 (shine)</label>
-          <label class="check"><input type="checkbox" id="fx-glow"> 글로우</label>
-          <label class="check"><input type="checkbox" id="fx-sparks" checked> 반짝 파티클</label>
-          <label class="check"><input type="checkbox" id="fx-tilt"> 3D 마우스 틸트 (PC 전용)</label>
-          <label class="check"><input type="checkbox" id="fx-ripple"> 리플 (파동)</label>
-          <label class="field">
-            <span>파티클 모양</span>
-            <select id="particle-shape">
-              <option value="star">별</option>
-              <option value="heart">하트</option>
-              <option value="flower">꽃</option>
-              <option value="bubble">버블</option>
-              <option value="snow">눈꽃</option>
-              <option value="sparkle">스파클</option>
-              <option value="musicnote">음표</option>
-              <option value="letter">편지</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>포인트 컬러 (글로우·파티클)</span>
-            <input type="color" id="accent-color" value="#ffd66b">
-          </label>
-          <label class="field">
-            <span>효과 강도 <strong id="intensity-value">60</strong></span>
-            <input type="range" id="fx-intensity" min="0" max="100" value="60">
-          </label>
-          <label class="field">
-            <span>효과 속도 <strong id="speed-value">100</strong>%</span>
-            <input type="range" id="fx-speed" min="50" max="200" value="100">
-          </label>
-          <label class="field">
-            <span>모서리 둥글기 <strong id="radius-value">22</strong>px</span>
-            <input type="range" id="border-radius" min="0" max="48" value="22">
-          </label>
-        </section>
-
-        <section class="section">
-          <h2>내보내기</h2>
-          <div class="export-mode">
-            <label class="radio"><input type="radio" name="export-mode" value="embedded" checked> 이미지 포함 HTML (GitHub에 파일 1개만)</label>
-            <label class="radio"><input type="radio" name="export-mode" value="files"> 이미지 분리 (repo에 html + webp 2장)</label>
-          </div>
-          <div class="export-actions">
-            <button type="button" id="btn-copy-html" class="btn">HTML 복사</button>
-            <button type="button" id="btn-download-html" class="btn btn-secondary">HTML 다운로드</button>
-          </div>
-          <p class="hint">"이미지 포함 HTML"을 다운로드해서 리포에 그대로 커밋하면 GitHub Pages에서 바로 보여요. "이미지 분리"를 고르면 html + webp 2장이 따로 나오니 함께 올리세요.</p>
-          <textarea id="export-output" readonly rows="8" placeholder="내보낸 코드가 여기 표시됩니다."></textarea>
-        </section>
-      </aside>
-
-      <section class="panel preview-panel">
-        <div class="preview-toolbar">
-          <span>미리보기</span>
-          <span class="preview-hint">PC: 마우스 올리기 · 모바일: 탭</span>
-        </div>
-        <div class="preview-stage" id="preview-stage">
-          <p class="placeholder" id="preview-placeholder">표지·공개 이미지를 업로드하면 미리보기가 표시됩니다.</p>
-          <div id="preview-mount" hidden></div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <script type="module" src="./js/app.js"></script>
-</body>
-</html>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hover Cell Studio — Multi Image</title>
+<style>
+:root{--bg:#0d0d14;--panel:#151521;--line:#2b2b3d;--text:#f5f3fa;--muted:#a8a4b8;--accent:#dca7ff;--accent2:#8edcff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#27203a 0,#0d0d14 42%);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif}.app{max-width:1500px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 18px}.brand{display:flex;gap:12px;align-items:center}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#dca7ff,#8edcff);color:#181321;font-size:22px;box-shadow:0 10px 30px #0005}.brand h1{margin:0;font-size:20px}.brand p{margin:2px 0 0;color:var(--muted)}button,select,input,textarea{font:inherit}.btn{border:1px solid var(--line);background:#1d1d2a;color:var(--text);border-radius:10px;padding:9px 12px;cursor:pointer}.btn:hover{border-color:#77728f}.primary{background:linear-gradient(135deg,#c992ff,#83d8ff);color:#15111c;border:0;font-weight:700}.layout{display:grid;grid-template-columns:440px 1fr;gap:16px}.panel{background:#12121cdd;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 20px 70px #0005}.controls{padding:16px;max-height:calc(100vh - 95px);overflow:auto}.section{padding:4px 0 18px;border-bottom:1px solid #292938;margin-bottom:16px}.section:last-child{border-bottom:0}.st{display:flex;gap:10px;align-items:center;margin-bottom:12px}.st b{color:var(--accent);font-size:12px}.st h2{font-size:15px;margin:0}.drop{display:flex;align-items:center;gap:10px;padding:12px;border:1px dashed #4a475d;border-radius:12px;cursor:pointer;background:#191925;margin-bottom:8px}.drop input{display:none}.drop strong{min-width:78px}.drop small{color:var(--muted)}.drop .count{margin-left:auto;color:var(--accent)}.row{display:flex;gap:8px;align-items:center}.field{display:block;margin:10px 0}.field span,.slider span{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:6px}.field select{width:100%;background:#1a1a26;border:1px solid var(--line);color:var(--text);padding:9px;border-radius:9px}.gallery{display:flex;flex-direction:column;gap:7px;margin-top:10px}.item{display:grid;grid-template-columns:48px 1fr auto;gap:9px;align-items:center;background:#191925;border:1px solid #2c2c3d;padding:7px;border-radius:10px}.thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:#252536}.item small{display:block;color:var(--muted)}.item input[type=number]{width:70px;background:#10101a;border:1px solid var(--line);color:white;border-radius:7px;padding:5px}.mini{padding:5px 7px;font-size:12px}.presets{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px}.check{background:#191925;border:1px solid var(--line);padding:8px;border-radius:9px}.slider{margin:11px 0}.slider input{width:100%}.export textarea{width:100%;height:120px;background:#0b0b12;color:#cfc9df;border:1px solid var(--line);border-radius:10px;padding:9px;resize:vertical}.export-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:8px}.preview{min-height:700px;display:flex;flex-direction:column}.bar{padding:12px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;color:var(--muted)}.stage{flex:1;display:grid;place-items:center;padding:35px;background:radial-gradient(circle at 50% 35%,#30263d 0,#11111a 48%,#0d0d14 100%)}.empty{text-align:center;color:var(--muted)}.empty b{font-size:50px;display:block;margin-bottom:10px}.tip{padding:10px 15px;color:#aaa6b7;border-top:1px solid var(--line);font-size:12px}.card{width:min(520px,90%);aspect-ratio:4/5;position:relative;perspective:1200px;cursor:pointer;filter:drop-shadow(0 25px 45px #0009)}.card .face{position:absolute;inset:0;border-radius:var(--radius,22px);overflow:hidden;backface-visibility:hidden}.cover{z-index:3;transition:opacity var(--dur,650ms) ease,transform var(--dur,650ms) ease,filter var(--dur,650ms) ease}.cover img,.slides img{width:100%;height:100%;object-fit:cover;display:block}.slides{z-index:1}.slide{position:absolute;inset:0;opacity:0;transition:opacity 500ms ease,transform 650ms ease}.slide.active{opacity:1}.slide img{transform:scale(1.03)}.shine{position:absolute;inset:-50%;z-index:8;pointer-events:none;background:linear-gradient(110deg,transparent 35%,#fff6 48%,transparent 60%);transform:translateX(-55%) rotate(12deg);transition:transform 900ms ease}.card:hover .shine{transform:translateX(55%) rotate(12deg)}.float{animation:float 4s ease-in-out infinite}@keyframes float{50%{transform:translateY(-8px)}}.glow{box-shadow:0 0 35px #dca7ff66}.particle{position:absolute;inset:0;pointer-events:none;z-index:10;overflow:hidden}.p{position:absolute;animation:rise 2.2s linear forwards;opacity:0}@keyframes rise{10%{opacity:.9}100%{transform:translate(var(--x),-110px) rotate(40deg);opacity:0}}.tilt{transition:transform .12s ease}.thumb.drag{opacity:.4}.notice{font-size:12px;color:#ffcf8a;margin-top:7px}.countbadge{font-size:11px;background:#2a2638;color:#d9c8ff;padding:2px 6px;border-radius:999px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.controls{max-height:none}.preview{min-height:600px}.export-actions{grid-template-columns:1fr 1fr}.export-actions .btn:last-child{grid-column:1/-1}}
+</style></head><body><div class="app"><header class="top"><div class="brand"><div class="mark">✦</div><div><h1>Hover Cell Studio</h1><p>편지지 카드 + 여러 사진 + 효과를 한 번에 만드는 호버 방셀 제작기</p></div></div><button class="btn" id="reset">↺ 초기화</button></header><div class="layout"><aside class="panel controls">
+<section class="section"><div class="st"><b>01</b><h2>사진 구성</h2></div><label class="drop"><input id="coverFile" type="file" accept="image/*"><strong>💌 표지</strong><small>마우스 올리기 전 카드</small></label><label class="drop"><input id="photos" type="file" accept="image/*" multiple><strong>🖼 사진 추가</strong><small>여러 장 선택 가능</small><span class="count" id="count">0장</span></label><div class="gallery" id="gallery"></div><div class="row" style="margin-top:8px"><button class="btn" id="addDemo">＋ 샘플 사진 4장</button><button class="btn" id="clearPhotos">전체 삭제</button></div></section>
+<section class="section"><div class="st"><b>02</b><h2>빠른 테마</h2></div><div class="presets"><button class="btn preset" data-p="romance">🌸 로맨스</button><button class="btn preset" data-p="night">🌙 나이트</button><button class="btn preset" data-p="fairy">🪽 페어리</button><button class="btn preset" data-p="vintage">✉️ 빈티지</button></div><div class="notice">테마는 표지와 샘플 사진까지 한 번에 넣어줘.</div></section>
+<section class="section"><div class="st"><b>03</b><h2>전환 / 효과</h2></div><label class="field"><span>사진 전환</span><select id="transition"><option value="fade">페이드</option><option value="zoom">줌</option><option value="slide">슬라이드</option><option value="flip">3D 플립</option><option value="random">랜덤</option></select></label><div class="checks"><label class="check"><input id="autoplay" type="checkbox" checked> 자동 재생</label><label class="check"><input id="float" type="checkbox" checked> 둥둥 효과</label><label class="check"><input id="shine" type="checkbox" checked> 빛 반사</label><label class="check"><input id="glow" type="checkbox" checked> 글로우</label><label class="check"><input id="tilt" type="checkbox" checked> 마우스 3D</label><label class="check"><input id="particles" type="checkbox" checked> 파티클</label></div><div class="slider"><span>기본 표시 시간 <b id="durv">1.8초</b></span><input id="duration" type="range" min="500" max="5000" step="100" value="1800"></div><div class="slider"><span>카드 둥글기 <b id="radiusv">22px</b></span><input id="radius" type="range" min="0" max="60" value="22"></div></section>
+<section class="section export"><div class="st"><b>04</b><h2>내보내기</h2></div><div class="export-actions"><button class="btn primary" id="copy">HTML 복사</button><button class="btn" id="download">HTML 저장</button><button class="btn" id="iframe">iframe 코드</button></div><textarea id="output" readonly placeholder="여기에 완성된 HTML이 생성돼."></textarea></section>
+</aside><section class="panel preview"><div class="bar"><b>LIVE PREVIEW</b><span>PC: 마우스 올리기 · 모바일: 터치</span></div><div class="stage" id="stage"><div class="empty" id="empty"><b>💌</b><div>표지와 사진을 넣어보세요</div></div><div id="mount" hidden></div></div><div class="tip">TIP · 사진을 드래그해서 순서를 바꿀 수 있고, 각 사진마다 표시 시간을 따로 지정할 수 있어.</div></section></div></div>
+<script>
+const $=s=>document.querySelector(s), state={cover:null,photos:[],settings:{transition:'fade',autoplay:true,float:true,shine:true,glow:true,tilt:true,particles:true,duration:1800,radius:22}};
+function readFile(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
+function svgData(label,a,b){return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="800" height="1000" fill="url(#g)"/><circle cx="120" cy="160" r="110" fill="#fff3"/><circle cx="690" cy="760" r="180" fill="#fff2"/><text x="400" y="470" text-anchor="middle" fill="white" font-size="64" font-family="sans-serif">${label}</text><text x="400" y="535" text-anchor="middle" fill="#fff9" font-size="28" font-family="sans-serif">HOVER MEMORY</text></svg>`)}
+function addPhoto(url,name='사진'){state.photos.push({url,name,duration:state.settings.duration});renderGallery();render()}
+function renderGallery(){const g=$('#gallery');g.innerHTML='';$('#count').textContent=state.photos.length+'장';state.photos.forEach((p,i)=>{const d=document.createElement('div');d.className='item';d.draggable=true;d.dataset.i=i;d.innerHTML=`<img class="thumb" src="${p.url}"><div><b>${i+1}. ${escapeHtml(p.name)}</b><small>표시시간 <input type="number" min="0.5" max="10" step="0.1" value="${(p.duration/1000).toFixed(1)}"> 초</small></div><button class="btn mini">✕</button>`;d.querySelector('input').oninput=e=>{p.duration=Math.max(500,+e.target.value*1000);render()};d.querySelector('button').onclick=()=>{state.photos.splice(i,1);renderGallery();render()};d.ondragstart=()=>d.classList.add('drag');d.ondragend=()=>d.classList.remove('drag');d.ondragover=e=>e.preventDefault();d.ondrop=e=>{e.preventDefault();const from=+e.dataTransfer.getData('text/plain');if(Number.isInteger(from)&&from!==i){const [x]=state.photos.splice(from,1);state.photos.splice(i,0,x);renderGallery();render()}};d.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',i));g.appendChild(d)})}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function settingsFromUI(){state.settings={transition:$('#transition').value,autoplay:$('#autoplay').checked,float:$('#float').checked,shine:$('#shine').checked,glow:$('#glow').checked,tilt:$('#tilt').checked,particles:$('#particles').checked,duration:+$('#duration').value,radius:+$('#radius').value}}
+function particle(){if(!state.settings.particles)return '';return `<div class="particle">${Array.from({length:14},(_,i)=>`<i class="p" style="left:${8+i*6}%;top:${55+(i%4)*8}%;--x:${-50+i*9}px;animation-delay:${i*70}ms">${['✦','♥','✿','·'][i%4]}</i>`).join('')}</div>`}
+function render(){settingsFromUI();$('#empty').hidden=!!(state.cover&&state.photos.length);const m=$('#mount');if(!state.cover||!state.photos.length){m.hidden=true;return}m.hidden=false;m.innerHTML=`<div class="card ${state.settings.float?'float':''} ${state.settings.glow?'glow':''}" style="--radius:${state.settings.radius}px"><div class="face slides">${state.photos.map((p,i)=>`<div class="slide ${i===0?'active':''}" data-i="${i}"><img src="${p.url}"></div>`).join('')}</div><div class="face cover"><img src="${state.cover}"></div>${state.settings.shine?'<div class="shine"></div>':''}${particle()}</div>`;const card=m.querySelector('.card'),cover=m.querySelector('.cover');let idx=0,timer;function next(){const ss=[...m.querySelectorAll('.slide')];if(!ss.length)return;ss[idx].classList.remove('active');idx=(idx+1)%ss.length;ss[idx].classList.add('active');if(state.settings.autoplay)timer=setTimeout(next,state.photos[idx].duration||state.settings.duration)}if(state.settings.autoplay&&state.photos.length>1)timer=setTimeout(next,state.photos[0].duration||state.settings.duration);card.addEventListener('mouseenter',()=>{cover.style.opacity='0';cover.style.transform=state.settings.transition==='flip'?'rotateY(180deg)':'scale(.96)';cover.style.filter=state.settings.transition==='zoom'?'blur(6px)':'';if(state.settings.particles)m.querySelectorAll('.p').forEach(x=>{x.style.animationPlayState='running'})});card.addEventListener('mouseleave',()=>{cover.style.opacity='1';cover.style.transform='';cover.style.filter=''}) ;if(state.settings.tilt){card.classList.add('tilt');card.addEventListener('mousemove',e=>{const r=card.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;card.style.transform=`rotateX(${y*-8}deg) rotateY(${x*10}deg)`});card.addEventListener('mouseleave',()=>card.style.transform='')}}
+function buildExport(){if(!state.cover||!state.photos.length)return '<!-- 표지와 사진을 먼저 넣어주세요 -->';const s=JSON.stringify({cover:state.cover,photos:state.photos,settings:state.settings});return `<!doctype html><html><meta charset="utf-8"><style>body{margin:0;display:grid;place-items:center;min-height:100vh;background:transparent}.hc{width:min(420px,90vw);aspect-ratio:4/5;position:relative;overflow:hidden;border-radius:${state.settings.radius}px;cursor:pointer;perspective:1200px;box-shadow:0 20px 45px #0006}.hc img{width:100%;height:100%;object-fit:cover}.ph{position:absolute;inset:0;opacity:0;transition:opacity .6s,transform .6s}.ph.on{opacity:1}.cover{position:absolute;inset:0;z-index:3;transition:opacity .6s,transform .6s}.shine{position:absolute;inset:-50%;background:linear-gradient(110deg,transparent 35%,#fff8 48%,transparent 60%);transform:translateX(-60%) rotate(12deg);transition:transform .9s;pointer-events:none;z-index:5}.hc:hover .shine{transform:translateX(60%) rotate(12deg)}.hc:hover .cover{opacity:0;transform:${state.settings.transition==='flip'?'rotateY(180deg)':'scale(.96)'}}.p{position:absolute;z-index:6;animation:r 2s linear infinite;opacity:0}@keyframes r{10%{opacity:1}100%{transform:translateY(-100px) rotate(35deg);opacity:0}}</style><div class="hc" id="hc"><div id="slides">${state.photos.map((p,i)=>`<div class="ph ${i===0?'on':''}"><img src="${p.url}"></div>`).join('')}</div><div class="cover"><img src="${state.cover}"></div>${state.settings.shine?'<div class="shine"></div>':''}${state.settings.particles?'<i class="p" style="left:20%;top:65%">✦</i><i class="p" style="left:55%;top:75%;animation-delay:.5s">♥</i>':''}</div><script>(function(){const a=${s};let i=0,els=[...document.querySelectorAll('.ph')];function n(){els[i].classList.remove('on');i=(i+1)%els.length;els[i].classList.add('on');setTimeout(n,a.photos[i].duration||a.settings.duration)}${state.settings.autoplay?'setTimeout(n,a.photos[0].duration||a.settings.duration);':''}})();<\/script></html>`}
+$('#coverFile').onchange=async e=>{if(e.target.files[0]){state.cover=await readFile(e.target.files[0]);render()}};$('#photos').onchange=async e=>{for(const f of e.target.files) addPhoto(await readFile(f),f.name);e.target.value=''};$('#clearPhotos').onclick=()=>{state.photos=[];renderGallery();render()};$('#addDemo').onclick=()=>{const sets=[['Dream','#d98ab8','#7750a8'],['Moon','#4e68ad','#161a38'],['Bloom','#9ed5b7','#5f76c8'],['Letter','#d9b98b','#72544c']];state.photos=[];sets.forEach((x,i)=>state.photos.push({url:svgData(x[0],x[1],x[2]),name:x[0],duration:state.settings.duration}));if(!state.cover)state.cover=svgData('OPEN ME','#dca7ff','#6c5a9e');renderGallery();render()};document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{const p=b.dataset.p;const map={romance:['Love','#f0a1c4','#8f5d9c'],night:['Moon','#536db5','#11162f'],fairy:['Fairy','#b6e3d1','#8d86d8'],vintage:['Letter','#d9bd8d','#705442']};const x=map[p];state.cover=svgData(x[0],x[1],x[2]);state.photos=[0,1,2,3].map((_,i)=>({url:svgData(['Memory','Smile','Moment','Forever'][i],x[1],x[2]),name:['Memory','Smile','Moment','Forever'][i],duration:state.settings.duration}));renderGallery();render()});['transition','autoplay','float','shine','glow','tilt','particles','duration','radius'].forEach(id=>$('#'+id).addEventListener('input',()=>{if(id==='duration')$('#durv').textContent=(+$('#duration').value/1000).toFixed(1)+'초';if(id==='radius')$('#radiusv').textContent=$('#radius').value+'px';render()}));$('#copy').onclick=async()=>{const h=buildExport();$('#output').value=h;await navigator.clipboard.writeText(h);$('#copy').textContent='✓ 복사됨';setTimeout(()=>$('#copy').textContent='HTML 복사',1200)};$('#download').onclick=()=>{const h=buildExport();$('#output').value=h;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h],{type:'text/html'}));a.download='hover-bangsel.html';a.click()};$('#iframe').onclick=()=>{const h=buildExport();const b64=btoa(unescape(encodeURIComponent(h)));const code=`<iframe srcdoc="${h.replace(/"/g,'&quot;')}" style="width:100%;max-width:520px;height:650px;border:0"></iframe>`;$('#output').value=code;navigator.clipboard.writeText(code)};$('#reset').onclick=()=>{state.cover=null;state.photos=[];$('#coverFile').value='';$('#photos').value='';renderGallery();render()};renderGallery();
+</script></body></html>
