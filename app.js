@@ -3732,15 +3732,7 @@ el("backupBtn").addEventListener("click", async () => {
 // ---------- 오프라인 버전 백업 가져오기 ----------
 // 오프라인 버전은 사진을 base64(dataURL) 형태로 글 안에 그대로 들고 있어서,
 // 그걸 하나씩 ImgBB에 새로 업로드하고 나온 링크로 바꿔서 온라인 Firestore에 저장해요.
-function dataUrlToFile(dataUrl, filename) {
-  const [header, base64] = dataUrl.split(",");
-  const mimeMatch = header.match(/data:(.*?);base64/);
-  const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new File([bytes], filename, { type: mime });
-}
+// (dataUrlToFile 함수는 위쪽(1714번 줄 부근)에 이미 정의되어 있어서 재사용해요.)
 
 el("offlineImportInput").addEventListener("change", () => {
   const f = el("offlineImportInput").files[0];
