@@ -1,19 +1,12 @@
-# Hover Cell Studio — Multi Image Edition
+# Hover Cell Studio
 
-기존 Hover Cell Studio를 기반으로 다중 이미지와 편의 기능을 추가한 버전입니다.
+GitHub Pages-ready hover message/card maker.
 
-## 추가된 기능
-- 사진 여러 장 동시 선택
-- 사진 순서 드래그앤드롭
-- 사진별 표시 시간 설정
-- 자동 재생 on/off
-- 페이드/줌/슬라이드/3D 플립/랜덤 전환 선택
-- 표지(편지지 카드)와 공개 사진 분리
-- 둥둥 / 빛 반사 / 글로우 / 3D 마우스 틸트 / 파티클
-- 로맨스/나이트/페어리/빈티지 테마
-- 샘플 사진 4장 자동 생성
-- 완성본 HTML 복사/저장
-- iframe 코드 생성
-- 모바일 터치에도 기본적으로 표시되도록 호버 구조 사용
+- 15 cover presets
+- Multiple photo support
+- Drag-and-drop photo order
+- Per-photo duration
+- Hover effects and particles
+- HTML / iframe export
 
-※ 샘플 이미지는 외부 서버에 의존하지 않도록 SVG data URL로 생성됩니다. 실제 방셀에는 사용자가 선택한 이미지가 HTML에 data URL로 포함됩니다.
+Upload the files in this folder to the repository root and enable GitHub Pages.
