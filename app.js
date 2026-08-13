@@ -83,6 +83,7 @@ let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) �
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 let selectedImageDeleteUrls = []; // 위 이미지들과 같은 순서의 ImgBB 삭제용 링크(있으면). 게시글 삭제할 때 같이 정리하는 데 씀.
 let replacedImageDeleteUrls = []; // 수정 중 기존 이미지를 새 이미지로 교체했을 때, 저장 성공 후 정리할 예전 ImgBB 삭제 링크
+let selectedHoverCells = []; // 글쓰기 폼에서 HTML로 가져온 호버방셀 목록
 
 let topMenuItems = []; // Firestore "topMenus" 컬렉션 (order 오름차순)
 let topMenuImageUrls = []; // 상단메뉴 편집 폼에서 업로드된(또는 기존) 이미지 URL 목록
@@ -1710,12 +1711,111 @@ function renderImagePreviews() {
   });
 }
 
+function dataUrlToFile(dataUrl, filename = "hovercell.webp") {
+  const m = String(dataUrl || "").match(/^data:([^;,]+)?(?:;[^,]*)?,(.*)$/s);
+  if (!m) throw new Error("호버방셀 HTML에 이미지 데이터가 들어있지 않아요. 제작기에서 '파일 포함(embedded)' HTML로 다운로드해 주세요.");
+  const mime = m[1] || "image/webp";
+  const raw = m[2] || "";
+  const bin = atob(raw);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], filename, { type: mime });
+}
+
+function renderHoverUploadPreviews() {
+  let box = el("hovercellPreviewList");
+  if (!box) return;
+  box.innerHTML = "";
+  selectedHoverCells.forEach((cell, idx) => {
+    const item = document.createElement("div");
+    item.className = "hovercell-upload-item";
+    item.innerHTML = `
+      <div class="hovercell-upload-thumb"><img src="${escapeHtml(cell.baseUrl)}" alt=""></div>
+      <div class="hovercell-upload-info"><b>호버방셀 ${idx + 1}</b><span>${escapeHtml(cell.revealMode || "fade")}</span></div>
+      <button type="button" class="hovercell-upload-remove" title="삭제">✕</button>`;
+    item.querySelector(".hovercell-upload-remove").addEventListener("click", () => {
+      const old = selectedHoverCells[idx];
+      tryDeleteImgbbImages([old?.baseDeleteUrl, old?.overlayDeleteUrl]);
+      selectedHoverCells.splice(idx, 1);
+      renderHoverUploadPreviews();
+      syncHoverCellMarkerText();
+    });
+    box.appendChild(item);
+  });
+}
+
+function syncHoverCellMarkerText() {
+  const ta = el("postContent");
+  if (!ta) return;
+  // 기존 호버방셀 번호가 있으면 건드리지 않고, 새로 가져온 개수만큼 빈 마커를 자동으로 추가해요.
+  const existing = Array.from(String(ta.value || "").matchAll(/\[호버방셀(\d+)\]/g)).map(m => Number(m[1])).filter(Number.isFinite);
+  const needed = selectedHoverCells.length;
+  if (!needed) return;
+  const maxExisting = existing.length ? Math.max(...existing) : 0;
+  const missing = [];
+  for (let i = maxExisting + 1; i <= needed; i++) missing.push(`[호버방셀${i}]`);
+  if (missing.length) {
+    const sep = ta.value.trim() ? "\n\n" : "";
+    ta.value = ta.value.replace(/\s+$/g, "") + sep + missing.join("\n\n");
+  }
+}
+
+async function importHoverCellHtml(file) {
+  const statusEl = el("imageUploadStatus");
+  statusEl.classList.remove("hidden", "error");
+  statusEl.textContent = "호버방셀 HTML을 읽는 중...";
+  try {
+    const text = await file.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/html");
+    const root = doc.querySelector(".hc-mb, .mb") || doc.body;
+    const baseEl = root.querySelector?.(".hc-base, .base-img") || doc.querySelector(".hc-base, .base-img");
+    const overlayEl = root.querySelector?.(".hc-overlay, .overlay-img") || doc.querySelector(".hc-overlay, .overlay-img");
+    const baseSrc = baseEl?.getAttribute("src") || "";
+    const overlaySrc = overlayEl?.getAttribute("src") || "";
+    if (!baseSrc || !overlaySrc) {
+      throw new Error("기본/호버 이미지가 HTML 안에 없어요. 호버셀 제작기에서 '파일 포함(embedded)'으로 HTML을 다운로드해 주세요.");
+    }
+    if (!baseSrc.startsWith("data:image/") || !overlaySrc.startsWith("data:image/")) {
+      throw new Error("선택한 HTML이 이미지 파일을 포함하지 않아요. 제작기에서 기본값인 '파일 포함(embedded)' 방식으로 HTML을 다시 다운로드해 주세요.");
+    }
+
+    const baseFile = dataUrlToFile(baseSrc, "hover-base.webp");
+    const overlayFile = dataUrlToFile(overlaySrc, "hover-overlay.webp");
+    statusEl.textContent = "호버방셀 이미지 2장을 ImgBB에 올리는 중...";
+    const [base, overlay] = await Promise.all([uploadToImgBB(baseFile), uploadToImgBB(overlayFile)]);
+
+    const mb = doc.querySelector(".hc-mb, .mb");
+    const revealMode = mb?.getAttribute("data-reveal") || "fade";
+    const radiusMatch = mb?.getAttribute("style")?.match(/border-radius\s*:\s*([\d.]+)px/i);
+    const borderRadius = radiusMatch ? Number(radiusMatch[1]) : 22;
+    selectedHoverCells.push({
+      baseUrl: base.url,
+      overlayUrl: overlay.url,
+      baseDeleteUrl: base.deleteUrl || null,
+      overlayDeleteUrl: overlay.deleteUrl || null,
+      revealMode,
+      borderRadius,
+    });
+    renderHoverUploadPreviews();
+    syncHoverCellMarkerText();
+    statusEl.textContent = `호버방셀 ${selectedHoverCells.length}번을 등록했어요.`;
+    setTimeout(() => statusEl.classList.add("hidden"), 2200);
+  } catch (err) {
+    statusEl.classList.add("error");
+    statusEl.textContent = `호버방셀 업로드 실패: ${err.message}`;
+  }
+}
+
 function resetImageUploadUI() {
   selectedImageUrls = [];
   selectedImageThumbUrls = [];
   selectedImageDeleteUrls = [];
   replacedImageDeleteUrls = [];
+  selectedHoverCells = [];
   el("postImageFiles").value = "";
+  if (el("hovercellHtmlInput")) el("hovercellHtmlInput").value = "";
+  renderHoverUploadPreviews();
   el("imageUploadStatus").classList.add("hidden");
   renderImagePreviews();
 }
@@ -1724,6 +1824,12 @@ el("postImageFiles").addEventListener("change", async (e) => {
   const files = Array.from(e.target.files || []);
   await uploadFilesToPreview(files);
   el("postImageFiles").value = "";
+});
+
+el("hovercellHtmlInput").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (file) await importHoverCellHtml(file);
 });
 
 // 이미지 파일들을 ImgBB에 올리고 미리보기 목록에 추가해요.
@@ -1791,9 +1897,11 @@ el("postForm").addEventListener("submit", async (e) => {
     const imageUrls = selectedImageUrls.slice();
     const imageThumbUrls = selectedImageThumbUrls.slice();
     const imageDeleteUrls = selectedImageDeleteUrls.slice();
+    const hoverCellsJson = selectedHoverCells.slice();
+    const hoverCellDeleteUrls = hoverCellsJson.flatMap(c => [c.baseDeleteUrl, c.overlayDeleteUrl]).filter(Boolean);
 
     if (editingPostId) {
-      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls });
+      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls, hoverCellsJson, hoverCellDeleteUrls });
       // 새 이미지 URL이 Firestore에 저장된 뒤에만 예전 ImgBB 이미지를 정리해요.
       if (replacedImageDeleteUrls.length) {
         tryDeleteImgbbImages(replacedImageDeleteUrls);
@@ -1811,7 +1919,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
     await addDoc(collection(db, "posts"), {
       boardId: currentBoardId,
-      title, content, imageUrls, imageThumbUrls, imageDeleteUrls,
+      title, content, imageUrls, imageThumbUrls, imageDeleteUrls, hoverCellsJson, hoverCellDeleteUrls,
       author: currentUser.email.split("@")[0],
       createdAt: serverTimestamp(),
       views: 0,
@@ -2094,6 +2202,7 @@ async function openPost(postId, opts = {}) {
     el("deletePostBtn").addEventListener("click", async () => {
       if (!confirm("이 게시글을 삭제할까요?")) return;
       tryDeleteImgbbImages(p.imageDeleteUrls);
+      tryDeleteImgbbImages(p.hoverCellDeleteUrls || getHoverCells(p).flatMap(c => [c.baseDeleteUrl, c.overlayDeleteUrl]).filter(Boolean));
       await deleteDoc(ref);
       invalidateBoardCache(p.boardId);
       showListView();
@@ -2111,7 +2220,9 @@ async function openPost(postId, opts = {}) {
       // 예전 글은 imageDeleteUrls가 없을 수 있어서, 사진 개수에 맞춰 null로 채워둬요.
       selectedImageDeleteUrls = images.map((u, i) => (Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls[i] : null) || null);
       replacedImageDeleteUrls = [];
+      selectedHoverCells = getHoverCells(p).map(c => ({ ...c }));
       renderImagePreviews();
+      renderHoverUploadPreviews();
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
       currentBoard = boardOfPost || currentBoard;
       showWriteView();

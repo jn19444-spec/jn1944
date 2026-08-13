@@ -114,10 +114,15 @@
         <input type="text" id="postTitle" placeholder="제목" required>
         <textarea id="postContent" placeholder="내용을 입력하세요" rows="8" required></textarea>
         <div class="image-upload-box">
-          <label for="postImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지/움짤 추가</label>
+          <div class="write-upload-actions">
+            <label for="postImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지/움짤 추가</label>
+            <label for="hovercellHtmlInput" class="btn btn-ghost image-upload-label">✨ 호버방셀 HTML 추가</label>
+          </div>
           <input type="file" id="postImageFiles" accept="image/*" multiple class="hidden">
+          <input type="file" id="hovercellHtmlInput" accept=".html,.htm,text/html" class="hidden">
           <span id="imageUploadStatus" class="image-upload-status hidden"></span>
           <div id="imagePreviewList" class="image-preview-list"></div>
+          <div id="hovercellPreviewList" class="hovercell-upload-list"></div>
         </div>
         <div class="form-actions">
           <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
