@@ -60,147 +60,95 @@ body.preview-open{overflow:hidden}
 <section class="section export"><div class="st"><b>05</b><h2>내보내기</h2></div><div class="export-actions"><button class="btn primary" id="copy">HTML 복사</button><button class="btn" id="download">HTML 저장</button><button class="btn" id="iframe">iframe 코드</button></div><textarea id="output" readonly placeholder="여기에 완성된 HTML이 생성돼."></textarea></section>
 </aside><section class="panel preview"><div class="bar"><b>LIVE PREVIEW</b><span>PC: 마우스 올리기 · 모바일: 터치</span></div><div class="stage" id="stage"><div class="empty" id="empty"><b>💌</b><div>표지와 사진을 넣어보세요</div></div><div id="mount" hidden></div></div><div class="tip">TIP · 사진을 드래그해서 순서를 바꿀 수 있고, 각 사진마다 표시 시간을 따로 지정할 수 있어.</div></section></div></div>
 <script>
-const $=s=>document.querySelector(s), state={cover:null,photos:[],settings:{transition:'fade',autoplay:true,float:true,shine:true,glow:true,tilt:true,particles:true,duration:1800,radius:22}};
+const $=s=>document.querySelector(s), state={cover:null,theme:null,photos:[],settings:{transition:'fade',autoplay:true,float:true,shine:true,glow:true,tilt:true,particles:true,duration:1800,radius:22}};
 function readFile(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
 function svgData(label,a,b){return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="800" height="1000" fill="url(#g)"/><circle cx="120" cy="160" r="110" fill="#fff3"/><circle cx="690" cy="760" r="180" fill="#fff2"/><text x="400" y="470" text-anchor="middle" fill="white" font-size="64" font-family="sans-serif">${label}</text><text x="400" y="535" text-anchor="middle" fill="#fff9" font-size="28" font-family="sans-serif">HOVER MEMORY</text></svg>`)}
 
 const coverDesigns={
- love:{kind:'love',label:'LOVE LETTER',sub:'open when you miss me',a:'#f6a8c8',b:'#80538f',emoji:'♡',border:'#fff8'},
- cherry:{kind:'cherry',label:'CHERRY BLOSSOM',sub:'a little memory for you',a:'#f7b8c8',b:'#b16c91',emoji:'✿',border:'#ffe9f2'},
- moon:{kind:'moon',label:'MOONLIGHT',sub:'under the same moon',a:'#5269ad',b:'#141936',emoji:'☾',border:'#dce6ff'},
- ribbon:{kind:'ribbon',label:'WITH LOVE',sub:'a tiny gift for you',a:'#e9a6c5',b:'#8e4e73',emoji:'🎀',border:'#fff3'},
- angel:{kind:'angel',label:'ANGEL WING',sub:'you are my little miracle',a:'#dceaf2',b:'#9a9ed4',emoji:'♢',border:'#fff'},
- aurora:{kind:'aurora',label:'AURORA',sub:'a dream inside a dream',a:'#77cfc5',b:'#816ab9',emoji:'✦',border:'#e8ffff'},
- crystal:{kind:'crystal',label:'CRYSTAL',sub:'made of little sparkles',a:'#8bc9ef',b:'#8c71c8',emoji:'◇',border:'#eff9ff'},
- butterfly:{kind:'butterfly',label:'BUTTERFLY',sub:'fly into my memory',a:'#caa9ee',b:'#6e78c8',emoji:'🦋',border:'#fff'},
- garden:{kind:'garden',label:'WHITE GARDEN',sub:'soft days, warm memories',a:'#dce9d6',b:'#7eaa98',emoji:'❀',border:'#fff'},
- vintage:{kind:'vintage',label:'MY LETTER',sub:'for your precious moments',a:'#d7bb8c',b:'#70513f',emoji:'✉',border:'#fff3dc'},
- royal:{kind:'royal',label:'ROYAL MEMORY',sub:'a special place for you',a:'#c8a1dd',b:'#513f77',emoji:'♕',border:'#fff4d6'},
- sweet:{kind:'sweet',label:'SWEET DAY',sub:'a little piece of happiness',a:'#f3b5a9',b:'#c27eaa',emoji:'🍰',border:'#fff'},
- music:{kind:'music',label:'MELODY',sub:'our favorite little song',a:'#9ab3dc',b:'#5c668f',emoji:'♫',border:'#fff'},
- magic:{kind:'magic',label:'MAGIC SPELL',sub:'make a wish and open',a:'#b08be4',b:'#4d4a92',emoji:'✧',border:'#fff'},
- polaroid:{kind:'polaroid',label:'DEAR MEMORY',sub:'one moment, forever',a:'#f1d4bb',b:'#a97d91',emoji:'▣',border:'#fff'}
+ love:{label:'LOVE LETTER',sub:'open when you miss me',a:'#f6a8c8',b:'#80538f',emoji:'♡',border:'#fff8'},
+ cherry:{label:'CHERRY BLOSSOM',sub:'a little memory for you',a:'#f7b8c8',b:'#b16c91',emoji:'✿',border:'#ffe9f2'},
+ moon:{label:'MOONLIGHT',sub:'under the same moon',a:'#5269ad',b:'#141936',emoji:'☾',border:'#dce6ff'},
+ ribbon:{label:'WITH LOVE',sub:'a tiny gift for you',a:'#e9a6c5',b:'#8e4e73',emoji:'🎀',border:'#fff3'},
+ angel:{label:'ANGEL WING',sub:'you are my little miracle',a:'#dceaf2',b:'#9a9ed4',emoji:'♢',border:'#fff'},
+ aurora:{label:'AURORA',sub:'a dream inside a dream',a:'#77cfc5',b:'#816ab9',emoji:'✦',border:'#e8ffff'},
+ crystal:{label:'CRYSTAL',sub:'made of little sparkles',a:'#8bc9ef',b:'#8c71c8',emoji:'◇',border:'#eff9ff'},
+ butterfly:{label:'BUTTERFLY',sub:'fly into my memory',a:'#caa9ee',b:'#6e78c8',emoji:'🦋',border:'#fff'},
+ garden:{label:'WHITE GARDEN',sub:'soft days, warm memories',a:'#dce9d6',b:'#7eaa98',emoji:'❀',border:'#fff'},
+ vintage:{label:'MY LETTER',sub:'for your precious moments',a:'#d7bb8c',b:'#70513f',emoji:'✉',border:'#fff3dc'},
+ royal:{label:'ROYAL MEMORY',sub:'a special place for you',a:'#c8a1dd',b:'#513f77',emoji:'♕',border:'#fff4d6'},
+ sweet:{label:'SWEET DAY',sub:'a little piece of happiness',a:'#f3b5a9',b:'#c27eaa',emoji:'🍰',border:'#fff'},
+ music:{label:'MELODY',sub:'our favorite little song',a:'#9ab3dc',b:'#5c668f',emoji:'♫',border:'#fff'},
+ magic:{label:'MAGIC SPELL',sub:'make a wish and open',a:'#b08be4',b:'#4d4a92',emoji:'✧',border:'#fff'},
+ polaroid:{label:'DEAR MEMORY',sub:'one moment, forever',a:'#f1d4bb',b:'#a97d91',emoji:'▣',border:'#fff'}
 };
+const themeScenes={
+ love:{class:'love',kicker:'A LETTER FOR YOU',title:'오늘도 너에게',sub:'보고 싶은 마음을 한 장에 담았어',decor:'<div class="scene-envelope">♡</div><div class="scene-stamp">LOVE</div><div class="scene-heart h1">♥</div><div class="scene-heart h2">♡</div>'},
+ cherry:{class:'cherry',kicker:'SPRING MEMORY',title:'벚꽃이 피던 날',sub:'꽃잎처럼 예쁜 순간을 담았어',decor:'<div class="scene-branch"></div><div class="petal p1">✿</div><div class="petal p2">✿</div><div class="petal p3">✿</div><div class="petal p4">✿</div><div class="petal p5">✿</div>'},
+ moon:{class:'moon',kicker:'MOONLIGHT LETTER',title:'달빛 아래 우리',sub:'같은 달을 바라보며 기억할게',decor:'<div class="moon-disc"></div><div class="moon-cloud c1"></div><div class="moon-cloud c2"></div><div class="moon-star s1">✦</div><div class="moon-star s2">✧</div><div class="moon-star s3">✦</div>'},
+ ribbon:{class:'ribbon',kicker:'A LITTLE GIFT',title:'너를 위한 선물',sub:'리본을 풀면 작은 추억이 나와',decor:'<div class="gift-box"></div><div class="gift-ribbon-v"></div><div class="gift-ribbon-h"></div>'},
+ angel:{class:'angel',kicker:'MY LITTLE MIRACLE',title:'천사의 편지',sub:'소중한 너에게 보내는 작은 기적',decor:'<div class="halo"></div><div class="wing left"></div><div class="wing right"></div><div class="feather">✧</div>'},
+ aurora:{class:'aurora',kicker:'DREAMY NIGHT',title:'오로라의 기억',sub:'꿈처럼 빛나던 순간을 담았어',decor:'<div class="aurora-band a1"></div><div class="aurora-band a2"></div><div class="aurora-star">✦</div>'},
+ crystal:{class:'crystal',kicker:'CRYSTAL MEMORY',title:'반짝이는 순간',sub:'작은 빛도 오래 간직할게',decor:'<div class="crystal-gem g1"></div><div class="crystal-gem g2"></div><div class="crystal-gem g3"></div><div class="crystal-spark">✦</div>'},
+ butterfly:{class:'butterfly',kicker:'FREE LIKE A BUTTERFLY',title:'나비처럼 날아온 기억',sub:'가볍게, 예쁘게, 오래 남도록',decor:'<div class="butterfly-shape b1">🦋</div><div class="butterfly-shape b2">🦋</div><div class="butterfly-dots">· · ·</div>'},
+ garden:{class:'garden',kicker:'WHITE GARDEN',title:'하얀 정원의 편지',sub:'따뜻한 오후의 꽃향기를 담아',decor:'<div class="flower f1">✿</div><div class="flower f2">❀</div><div class="flower f3">✿</div><div class="stem st1"></div><div class="stem st2"></div>'},
+ vintage:{class:'vintage',kicker:'DEAR YOU',title:'오래된 편지',sub:'시간이 지나도 남아 있을 이야기',decor:'<div class="wax-seal">♥</div><div class="postmark">AIR<br>MAIL</div><div class="paper-line l1"></div><div class="paper-line l2"></div>'},
+ royal:{class:'royal',kicker:'A SPECIAL MEMORY',title:'나만의 작은 왕실',sub:'오늘만큼은 너를 가장 귀하게',decor:'<div class="crown">♕</div><div class="royal-ornament o1">◆</div><div class="royal-ornament o2">◆</div><div class="royal-line"></div>'},
+ sweet:{class:'sweet',kicker:'SWEET DAY',title:'달콤한 하루',sub:'웃음 한 조각, 행복 한 스푼',decor:'<div class="cake">🍰</div><div class="sprinkle sp1">•</div><div class="sprinkle sp2">•</div><div class="sprinkle sp3">•</div><div class="sweet-heart">♥</div>'},
+ music:{class:'music',kicker:'OUR LITTLE MELODY',title:'우리의 멜로디',sub:'기억 속에 계속 흐르는 노래처럼',decor:'<div class="staff"></div><div class="note n1">♪</div><div class="note n2">♫</div><div class="note n3">♩</div>'},
+ magic:{class:'magic',kicker:'A LITTLE MAGIC',title:'마법처럼 열린 기억',sub:'소원을 빌고 사진을 열어봐',decor:'<div class="magic-ring r1"></div><div class="magic-ring r2"></div><div class="wand">✦</div><div class="magic-spark ms1">✧</div><div class="magic-spark ms2">✦</div>'},
+ polaroid:{class:'polaroid',kicker:'ONE MOMENT FOREVER',title:'찰칵, 그 순간',sub:'사진 한 장에 오래 남겨둘게',decor:'<div class="camera-icon">▣</div><div class="film-strip"></div><div class="polaroid-tape"></div>'}
+};
+function escapeAttr(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function sceneMarkup(themeKey, photo){
+  const t=themeScenes[themeKey]||themeScenes.love;
+  const photoSrc=photo?.url||'';
+  return `<div class="memory-scene ${t.class}">${t.decor}<div class="scene-paper"><div class="scene-kicker">${t.kicker}</div><div class="scene-title">${t.title}</div><div class="scene-photo"><img src="${escapeAttr(photoSrc)}" alt=""></div><div class="scene-caption">${t.sub}</div><div class="scene-sign">with love · ${new Date().getFullYear()}</div></div></div>`;
+}
+function sceneStyles(){return `<style>
+.memory-scene{position:absolute;inset:0;z-index:2;overflow:hidden;font-family:Georgia,"Noto Serif KR",serif;transition:opacity .65s,transform .7s;}
+.scene-paper{position:absolute;inset:7%;border-radius:18px;padding:8% 8% 6%;text-align:center;box-shadow:0 18px 45px #0005;overflow:hidden;}
+.scene-kicker{font:700 10px/1.2 system-ui,sans-serif;letter-spacing:3px;opacity:.72;margin-bottom:9px}.scene-title{font-size:27px;font-weight:700;line-height:1.25;margin-bottom:18px}.scene-photo{position:relative;width:78%;aspect-ratio:1/1.08;margin:0 auto 15px;padding:8px;border-radius:7px;box-shadow:0 12px 25px #0003;overflow:hidden}.scene-photo img{width:100%;height:100%;object-fit:cover;display:block;border-radius:3px}.scene-caption{font-size:13px;line-height:1.6;opacity:.82}.scene-sign{position:absolute;left:0;right:0;bottom:5%;font:11px system-ui,sans-serif;opacity:.5;letter-spacing:1px}
+.love{background:linear-gradient(145deg,#f8c8d9,#d995b7 55%,#9d628d)}.love .scene-paper{background:#fff8f4;border:1px solid #d89ab3;color:#6c4056}.love .scene-photo{background:#fff;border:1px solid #e6c5d0}.scene-envelope{position:absolute;right:8%;top:4%;font-size:50px;color:#fff8}.scene-stamp{position:absolute;left:8%;top:7%;font:700 9px system-ui;color:#a25a7a;border:1px dashed #a25a7a;padding:5px}.scene-heart{position:absolute;color:#fff9;animation:floatheart 3s ease-in-out infinite}.scene-heart.h1{left:5%;bottom:15%;font-size:28px}.scene-heart.h2{right:7%;bottom:25%;font-size:18px;animation-delay:.8s}
+.cherry{background:linear-gradient(160deg,#fff0f5,#f6c4d6 48%,#d58da7)}.cherry .scene-paper{background:linear-gradient(#fffafc,#fff5f8);color:#744b5a;border:1px solid #e8c1cf}.cherry .scene-photo{background:#fff;border:7px solid #f3d4df}.scene-branch{position:absolute;right:-8%;top:5%;width:72%;height:18%;border-top:8px solid #684b47;border-radius:50%;transform:rotate(-18deg)}.petal{position:absolute;color:#e58aaa;font-size:26px}.petal.p1{right:8%;top:8%}.petal.p2{right:25%;top:15%}.petal.p3{left:7%;top:25%}.petal.p4{right:11%;bottom:17%}.petal.p5{left:14%;bottom:10%}
+.moon{background:radial-gradient(circle at 70% 20%,#5f6fb7,#1a214c 40%,#080c23)}.moon .scene-paper{background:linear-gradient(160deg,#f2f5ff,#dce5ff);color:#293459;border:1px solid #aabce7}.moon .scene-photo{background:#fff;border:5px solid #c4d2f1}.moon-disc{position:absolute;right:11%;top:8%;width:82px;height:82px;border-radius:50%;background:#fff1b7;box-shadow:0 0 40px #fff4b7aa}.moon-cloud{position:absolute;background:#fff2;border-radius:50%;filter:blur(1px)}.moon-cloud.c1{width:180px;height:40px;left:-20px;top:18%}.moon-cloud.c2{width:140px;height:30px;right:-30px;bottom:14%}.moon-star{position:absolute;color:#fff;font-size:16px}.moon-star.s1{left:12%;top:12%}.moon-star.s2{left:22%;top:35%}.moon-star.s3{right:10%;top:34%}
+.ribbon{background:linear-gradient(145deg,#f4c4d8,#c77fa9 55%,#824d78)}.ribbon .scene-paper{background:#fff8fb;color:#75435e;border:1px solid #e6b4cf}.ribbon .scene-photo{background:#fff;border:5px solid #f0c5da}.gift-box{position:absolute;left:50%;top:3%;width:130px;height:70px;transform:translateX(-50%);background:#efb4cb;border-radius:8px;box-shadow:0 10px 20px #5a234333}.gift-ribbon-v{position:absolute;left:50%;top:3%;width:20px;height:70px;transform:translateX(-50%);background:#fff5}.gift-ribbon-h{position:absolute;left:calc(50% - 65px);top:32px;width:130px;height:14px;background:#fff5}
+.angel{background:radial-gradient(circle at 50% 15%,#fff,#dbe9f4 45%,#9aa8d1)}.angel .scene-paper{background:#fffdf9eF;color:#596078;border:1px solid #d6d9e8}.angel .scene-photo{background:#fff;border:5px solid #e7e4ef}.halo{position:absolute;left:50%;top:5%;width:80px;height:28px;border:5px solid #fff9;border-radius:50%;transform:translateX(-50%);box-shadow:0 0 25px #fff}.wing{position:absolute;top:10%;width:110px;height:65px;background:#fff8;filter:blur(.2px);border-radius:80% 20% 80% 20%}.wing.left{left:-5%;transform:rotate(18deg)}.wing.right{right:-5%;transform:scaleX(-1) rotate(18deg)}.feather{position:absolute;right:9%;top:26%;font-size:35px;color:#fff}
+.aurora{background:linear-gradient(180deg,#07152e,#193b5b 45%,#57427b)}.aurora .scene-paper{background:#f4fbffeF;color:#294b58;border:1px solid #bfe7e6}.aurora .scene-photo{background:#fff;border:5px solid #d0f1ee}.aurora-band{position:absolute;width:120%;height:170px;left:-10%;border-radius:50%;filter:blur(14px);opacity:.65}.aurora-band.a1{top:2%;background:linear-gradient(90deg,#5ff0c4,#a7ffdf,#6e8bff);transform:rotate(-8deg)}.aurora-band.a2{top:12%;background:linear-gradient(90deg,#7a5cff,#5ff0e0,#a4ffcf);transform:rotate(8deg);opacity:.4}.aurora-star{position:absolute;right:12%;top:22%;color:#fff;font-size:30px}
+.crystal{background:linear-gradient(150deg,#d9f4ff,#a4c9ee 45%,#7b66b4)}.crystal .scene-paper{background:#f9fdffEE;color:#3f5676;border:1px solid #b9d9f2}.crystal .scene-photo{background:#fff;border:6px solid #d6efff}.crystal-gem{position:absolute;clip-path:polygon(50% 0,90% 35%,70% 100%,30% 100%,10% 35%);background:linear-gradient(140deg,#fff,#8bd9ff,#a37eea);filter:drop-shadow(0 0 16px #fff8)}.crystal-gem.g1{width:95px;height:120px;right:3%;top:3%;transform:rotate(12deg)}.crystal-gem.g2{width:55px;height:70px;left:5%;bottom:8%;transform:rotate(-20deg)}.crystal-gem.g3{width:38px;height:50px;right:12%;bottom:13%}.crystal-spark{position:absolute;left:9%;top:13%;color:#fff;font-size:30px}
+.butterfly{background:linear-gradient(145deg,#f0dcff,#b9b4ed 50%,#777cc4)}.butterfly .scene-paper{background:#fffafeee;color:#65507a;border:1px solid #d9c8eb}.butterfly .scene-photo{background:#fff;border:6px solid #eadff4}.butterfly-shape{position:absolute;font-size:55px;filter:drop-shadow(0 6px 10px #4b3e7255)}.butterfly-shape.b1{left:2%;top:8%;transform:rotate(-18deg)}.butterfly-shape.b2{right:2%;bottom:8%;font-size:38px;transform:rotate(20deg)}.butterfly-dots{position:absolute;left:12%;bottom:24%;color:#fff9;letter-spacing:8px}
+.garden{background:linear-gradient(145deg,#f5f5ea,#d4e2cf 55%,#91aa92)}.garden .scene-paper{background:#fffdf7EE;color:#536c5b;border:1px solid #c7d8c5}.garden .scene-photo{background:#fff;border:6px solid #e5eee2}.flower{position:absolute;color:#fff;font-size:55px;text-shadow:0 5px 12px #536c5b55}.flower.f1{left:3%;top:5%}.flower.f2{right:4%;top:17%;font-size:40px}.flower.f3{right:2%;bottom:5%;font-size:50px}.stem{position:absolute;width:2px;height:150px;background:#66826b;transform:rotate(20deg);bottom:-5%}.stem.st1{left:12%}.stem.st2{right:15%;transform:rotate(-25deg)}
+.vintage{background:#9b765a}.vintage .scene-paper{background:repeating-linear-gradient(0deg,#f3e1bd,#f3e1bd 31px,#e9d4ad 32px);color:#634b39;border:8px double #9a744e}.vintage .scene-photo{background:#f7ead0;border:8px solid #fff4df;box-shadow:0 8px 16px #5b3d2a33}.wax-seal{position:absolute;right:8%;top:7%;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:#9a3f45;color:#f5d8b5;font-size:22px;box-shadow:0 5px 10px #4d291e66}.postmark{position:absolute;left:7%;top:7%;border:2px dashed #80614a;border-radius:50%;padding:7px;font:700 8px system-ui;transform:rotate(-12deg);opacity:.7}.paper-line{position:absolute;left:14%;right:14%;border-top:1px solid #9a7958aa}.paper-line.l1{bottom:18%}.paper-line.l2{bottom:13%}
+.royal{background:radial-gradient(circle at 50% 20%,#8f74c3,#4d386f 55%,#211b38)}.royal .scene-paper{background:linear-gradient(#fffdf8,#f3ebff);color:#5d456f;border:5px solid #c8a64e;box-shadow:0 0 0 3px #fff2,0 20px 40px #0006}.royal .scene-photo{background:#fff;border:6px solid #d5b85f}.crown{position:absolute;left:50%;top:2%;transform:translateX(-50%);font-size:55px;color:#f5d46b;text-shadow:0 5px 10px #22152f}.royal-ornament{position:absolute;color:#e8c76a;font-size:25px;top:33%}.royal-ornament.o1{left:6%}.royal-ornament.o2{right:6%}.royal-line{position:absolute;left:18%;right:18%;top:31%;border-top:2px solid #d8bb68}
+.sweet{background:linear-gradient(145deg,#ffe1d4,#f6b7c7 50%,#d890b2)}.sweet .scene-paper{background:#fffaf8;color:#8b5065;border:2px dashed #efb1bf}.sweet .scene-photo{background:#fff;border:6px solid #ffe0e5}.cake{position:absolute;right:5%;top:3%;font-size:54px;transform:rotate(8deg)}.sprinkle{position:absolute;color:#fff;font-size:28px}.sprinkle.sp1{left:7%;top:10%}.sprinkle.sp2{right:12%;bottom:16%}.sprinkle.sp3{left:8%;bottom:20%}.sweet-heart{position:absolute;right:8%;bottom:8%;color:#fff;font-size:30px}
+.music{background:linear-gradient(145deg,#d9e4f7,#9bb0d7 55%,#60698f)}.music .scene-paper{background:#fbfcffEE;color:#47546f;border:1px solid #b9c9e5}.music .scene-photo{background:#fff;border:6px solid #d5e0f1}.staff{position:absolute;left:-2%;right:-2%;top:10%;height:42px;border-top:2px solid #fff7;border-bottom:2px solid #fff7;background:repeating-linear-gradient(0deg,transparent,transparent 7px,#fff7 8px,#fff7 9px)}.note{position:absolute;color:#fff;font-size:40px}.note.n1{left:10%;top:5%;transform:rotate(-12deg)}.note.n2{right:8%;top:14%;transform:rotate(10deg)}.note.n3{left:15%;bottom:8%}
+.magic{background:radial-gradient(circle,#7761bf,#2a1f55 58%,#100d26)}.magic .scene-paper{background:#f7f2ffEE;color:#4f3e72;border:1px solid #d7c5ff}.magic .scene-photo{background:#fff;border:5px solid #dfd2ff}.magic-ring{position:absolute;left:50%;top:11%;border:2px solid #e7d8ff;border-radius:50%;transform:translateX(-50%);box-shadow:0 0 22px #bda2ff88}.magic-ring.r1{width:145px;height:145px}.magic-ring.r2{width:100px;height:100px;top:14%;border-style:dashed}.wand{position:absolute;right:7%;top:8%;font-size:35px;color:#fff}.magic-spark{position:absolute;color:#fff;font-size:22px}.magic-spark.ms1{left:7%;top:20%}.magic-spark.ms2{right:8%;bottom:12%}
+.polaroid{background:linear-gradient(145deg,#d9c4b2,#b78f82 55%,#795d68)}.polaroid .scene-paper{background:#f9f6ef;color:#4f4741;border:1px solid #ddd4c7;padding:8% 7% 6%}.polaroid .scene-photo{background:#fff;border:9px solid #fff;border-bottom-width:28px;box-shadow:0 14px 25px #4b3d3838;transform:rotate(-1.5deg)}.camera-icon{position:absolute;right:8%;top:7%;font-size:35px;color:#fff8}.film-strip{position:absolute;left:0;right:0;bottom:0;height:30px;background:repeating-linear-gradient(90deg,#1d1b1b 0 12px,#d8d8d8 12px 20px)}.polaroid-tape{position:absolute;left:50%;top:1%;width:90px;height:28px;background:#fff8d6aa;transform:translateX(-50%) rotate(-2deg)}
+@keyframes floatheart{50%{transform:translateY(-8px) rotate(5deg)}}
+</style>`}
 function coverSvg(d){
-  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const safe=esc(d.label), sub=esc(d.sub);
-  const bg=`<defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${d.a}"/><stop offset="1" stop-color="${d.b}"/></linearGradient>
-    <radialGradient id="gl"><stop stop-color="#fff" stop-opacity=".42"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-    <filter id="blur"><feGaussianBlur stdDeviation="12"/></filter>
-  </defs><rect width="800" height="1000" rx="45" fill="url(#bg)"/>`;
-  let art='';
-  switch(d.kind){
-    case 'love':
-      art=`<rect x="105" y="150" width="590" height="700" rx="22" fill="#fffaf5" opacity=".97" transform="rotate(-3 400 500)"/>
-      <path d="M150 230 Q400 430 650 230 L650 800 Q400 690 150 800Z" fill="#fff" opacity=".8"/>
-      <path d="M155 235 L400 470 L645 235" fill="none" stroke="#d98cab" stroke-width="7"/>
-      <path d="M270 520 Q400 410 530 520 Q400 650 270 520Z" fill="#ee9fbd" opacity=".9"/>
-      <text x="400" y="730" text-anchor="middle" font-size="30" font-family="Georgia,serif" fill="#9b5b79">with love</text>`;
-      break;
-    case 'cherry':
-      art=`<circle cx="625" cy="185" r="82" fill="#fff" opacity=".45"/>
-      <path d="M80 760 Q220 500 350 310 Q455 160 720 105" fill="none" stroke="#5d4a4a" stroke-width="18" stroke-linecap="round"/>
-      <path d="M190 600 Q360 500 500 350 M330 350 Q300 230 210 160 M500 350 Q600 260 690 270" fill="none" stroke="#5d4a4a" stroke-width="11" stroke-linecap="round"/>
-      ${[[205,160],[245,185],[300,230],[350,300],[500,350],[555,315],[610,275],[680,270],[620,180],[710,120],[425,430]].map(([x,y])=>`<g transform="translate(${x} ${y})"><circle cx="-18" cy="0" r="18" fill="#fff0f5"/><circle cx="18" cy="0" r="18" fill="#ffd8e5"/><circle cx="0" cy="-18" r="18" fill="#ffc3d7"/><circle cx="0" cy="0" r="7" fill="#d99b48"/></g>`).join('')}`;
-      break;
-    case 'moon':
-      art=`<circle cx="590" cy="235" r="135" fill="#fff" opacity=".18"/><circle cx="550" cy="205" r="105" fill="#f5f2d8"/>
-      <circle cx="590" cy="175" r="105" fill="${d.b}"/>
-      <path d="M0 790 Q160 690 310 790 T800 760 V1000 H0Z" fill="#10152d" opacity=".85"/>
-      <path d="M0 850 Q170 750 330 850 T800 820 V1000 H0Z" fill="#0a0d1c"/>
-      ${[[130,170],[220,260],[330,140],[710,160],[650,330],[420,250],[740,410]].map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="${i%2?4:6}" fill="#fff" opacity=".8"/>`).join('')}
-      <path d="M170 820 Q180 690 210 610 Q245 690 255 820 M220 760 L175 700 M225 730 L270 670" stroke="#171426" stroke-width="13" fill="none" stroke-linecap="round"/>`;
-      break;
-    case 'ribbon':
-      art=`<rect x="145" y="145" width="510" height="700" rx="32" fill="#fff7fb" opacity=".95"/>
-      <path d="M400 145 V845" stroke="#d07da4" stroke-width="22"/><path d="M145 465 H655" stroke="#d07da4" stroke-width="22"/>
-      <path d="M400 465 C300 360 190 390 245 500 C290 580 380 500 400 465 C420 500 510 580 555 500 C610 390 500 360 400 465Z" fill="#e5a0bd" stroke="#fff" stroke-width="8"/>
-      <path d="M400 465 C345 410 315 360 330 315 C355 340 390 370 400 420 C410 370 445 340 470 315 C485 360 455 410 400 465Z" fill="#c8789d"/>`;
-      break;
-    case 'angel':
-      art=`<ellipse cx="400" cy="560" rx="85" ry="145" fill="#fff" opacity=".78"/>
-      <path d="M350 520 C180 350 65 470 220 690 C280 775 355 720 375 650" fill="#fff" opacity=".75"/>
-      <path d="M450 520 C620 350 735 470 580 690 C520 775 445 720 425 650" fill="#fff" opacity=".75"/>
-      <circle cx="400" cy="405" r="72" fill="#fff4e8"/><ellipse cx="400" cy="300" rx="105" ry="28" fill="none" stroke="#fff5b5" stroke-width="12" opacity=".9"/>
-      <path d="M330 760 Q400 700 470 760" fill="none" stroke="#fff" stroke-width="16" opacity=".8"/>`;
-      break;
-    case 'aurora':
-      art=`<path d="M0 620 Q150 260 300 600 T600 500 T800 620 V1000 H0Z" fill="#6df0d0" opacity=".25"/>
-      <path d="M0 680 Q160 320 330 650 T650 540 T800 650" fill="none" stroke="#b8fff0" stroke-width="55" opacity=".35"/>
-      <path d="M0 710 Q170 390 340 690 T650 580 T800 690" fill="none" stroke="#d7b9ff" stroke-width="32" opacity=".35"/>
-      <circle cx="160" cy="170" r="70" fill="#fff" opacity=".16"/>`;
-      break;
-    case 'crystal':
-      art=`<polygon points="400,120 650,330 570,730 400,875 230,730 150,330" fill="#d9f5ff" opacity=".25" stroke="#fff" stroke-width="6"/>
-      <polygon points="400,120 400,875 570,730 650,330" fill="#fff" opacity=".12"/>
-      <polygon points="400,120 230,330 400,875 150,330" fill="#aee5ff" opacity=".12"/>
-      ${[[170,180],[650,170],[120,700],[690,760],[310,260],[500,620]].map(([x,y])=>`<path d="M${x-14} ${y}H${x+14}M${x} ${y-14}V${y+14}" stroke="#fff" stroke-width="4" opacity=".8"/>`).join('')}`;
-      break;
-    case 'butterfly':
-      art=`<g transform="translate(400 500)"><ellipse rx="25" ry="190" fill="#514b8e"/>
-      <path d="M-20 -20 C-250 -230 -330 -40 -210 130 C-130 240 -45 125 -20 55Z" fill="#e7c8ff" opacity=".9"/>
-      <path d="M20 -20 C250 -230 330 -40 210 130 C130 240 45 125 20 55Z" fill="#c7d7ff" opacity=".9"/>
-      <path d="M-20 35 C-190 90 -190 270 -55 235 C-15 220 -8 120 -20 35Z" fill="#cda9ee" opacity=".85"/>
-      <path d="M20 35 C190 90 190 270 55 235 C15 220 8 120 20 35Z" fill="#a9b9ef" opacity=".85"/></g>`;
-      break;
-    case 'garden':
-      art=`<path d="M100 760 Q210 620 330 760 Q430 620 560 760 Q650 650 720 760" fill="none" stroke="#4f775e" stroke-width="18"/>
-      ${[[150,720],[240,650],[340,730],[450,670],[560,720],[650,680]].map(([x,y],i)=>`<g transform="translate(${x} ${y})"><circle r="45" fill="#fff"/><circle cx="0" cy="-32" r="27" fill="#e9f4e4"/><circle cx="32" cy="0" r="27" fill="#dbeedc"/><circle cx="0" cy="32" r="27" fill="#eef6eb"/><circle cx="-32" cy="0" r="27" fill="#dbeedc"/><circle r="10" fill="#e7c76f"/></g>`).join('')}`;
-      break;
-    case 'vintage':
-      art=`<rect x="125" y="150" width="550" height="680" fill="#f4e5c9" opacity=".95" transform="rotate(2 400 500)"/>
-      <path d="M170 260 Q400 190 630 260" fill="none" stroke="#a7855d" stroke-width="3"/>
-      <text x="400" y="390" text-anchor="middle" font-size="72" font-family="Georgia,serif" fill="#795b45">Dear</text>
-      <text x="400" y="470" text-anchor="middle" font-size="92" font-family="Georgia,serif" fill="#795b45">You</text>
-      <path d="M230 560 H570 M280 610 H520" stroke="#a7855d" stroke-width="3"/>
-      <circle cx="400" cy="700" r="48" fill="#c98b70" opacity=".65"/><text x="400" y="715" text-anchor="middle" font-size="34" fill="#fff">✉</text>`;
-      break;
-    case 'royal':
-      art=`<path d="M145 740 L175 330 L280 470 L400 260 L520 470 L625 330 L655 740Z" fill="#f4d68d" opacity=".28" stroke="#ffe8a7" stroke-width="8"/>
-      <path d="M205 690 H595" stroke="#ffe8a7" stroke-width="12"/>
-      <circle cx="400" cy="510" r="95" fill="#fff" opacity=".1" stroke="#ffe8a7" stroke-width="5"/>
-      <text x="400" y="540" text-anchor="middle" font-size="82" fill="#ffe8a7">♕</text>`;
-      break;
-    case 'sweet':
-      art=`<path d="M190 650 Q400 570 610 650 L570 810 H230Z" fill="#fff4ef" opacity=".95"/>
-      <path d="M205 650 Q400 570 595 650" fill="none" stroke="#eaa5ad" stroke-width="25"/>
-      <path d="M230 585 Q400 490 570 585" fill="#fff" stroke="#e7a4b3" stroke-width="8"/>
-      <circle cx="400" cy="470" r="55" fill="#f2b2b8"/><path d="M400 430 Q440 385 475 425" fill="none" stroke="#c86f82" stroke-width="12"/>
-      <circle cx="300" cy="640" r="13" fill="#e9a1b0"/><circle cx="500" cy="630" r="13" fill="#e9a1b0"/>`;
-      break;
-    case 'music':
-      art=`<path d="M245 280 V670 Q245 750 175 750 Q115 750 115 700 Q115 640 245 650 M245 280 L620 190 V580 Q620 660 550 660 Q490 660 490 610 Q490 550 620 560" fill="none" stroke="#f0f5ff" stroke-width="22" stroke-linecap="round"/>
-      <path d="M245 280 L620 190" stroke="#f0f5ff" stroke-width="22"/>
-      ${[330,400,470,540].map((x,i)=>`<path d="M${x} 770 Q${x+35} ${700-i*8} ${x+70} 770" fill="none" stroke="#fff" stroke-width="7" opacity=".55"/>`).join('')}`;
-      break;
-    case 'magic':
-      art=`<circle cx="400" cy="500" r="190" fill="none" stroke="#e9d9ff" stroke-width="5" opacity=".55"/>
-      <path d="M400 220 L430 450 L650 500 L430 550 L400 780 L370 550 L150 500 L370 450Z" fill="#fff" opacity=".13"/>
-      <path d="M400 285 L420 470 L605 500 L420 530 L400 715 L380 530 L195 500 L380 470Z" fill="#fff" opacity=".18"/>
-      ${[[150,260],[650,280],[180,700],[650,720],[280,180],[540,180]].map(([x,y])=>`<text x="${x}" y="${y}" font-size="40" fill="#fff">✦</text>`).join('')}`;
-      break;
-    case 'polaroid':
-      art=`<rect x="145" y="125" width="510" height="750" rx="8" fill="#fff" opacity=".97" transform="rotate(-4 400 500)"/>
-      <rect x="190" y="180" width="420" height="500" fill="#d9c1a9"/>
-      <circle cx="315" cy="350" r="80" fill="#f4d5bd" opacity=".8"/><path d="M230 620 Q320 450 410 590 T610 530 V680 H190Z" fill="#9bb0a0" opacity=".75"/>
-      <text x="400" y="770" text-anchor="middle" font-size="36" font-family="cursive" fill="#66584e">one moment, forever</text>`;
-      break;
-    default:
-      art=`<circle cx="120" cy="140" r="220" fill="url(#gl)"/><circle cx="700" cy="820" r="260" fill="url(#gl)"/>`;
-  }
-  const titleY=d.kind==='love'||d.kind==='vintage'||d.kind==='polaroid'?920:900;
+  const safe=d.label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sub=d.sub.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000">
-    ${bg}${art}
-    <rect x="45" y="45" width="710" height="910" rx="38" fill="none" stroke="${d.border}" stroke-opacity=".65" stroke-width="3"/>
-    <text x="400" y="${titleY}" text-anchor="middle" font-size="30" font-family="Georgia,serif" letter-spacing="4" fill="#fff" fill-opacity=".95">${safe}</text>
-    <text x="400" y="${titleY+35}" text-anchor="middle" font-size="16" font-family="sans-serif" fill="#fff" fill-opacity=".8">${sub}</text>
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${d.a}"/><stop offset="1" stop-color="${d.b}"/></linearGradient>
+      <radialGradient id="gl"><stop stop-color="#fff" stop-opacity=".38"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    </defs>
+    <rect width="800" height="1000" rx="45" fill="url(#bg)"/>
+    <circle cx="120" cy="140" r="220" fill="url(#gl)"/>
+    <circle cx="700" cy="820" r="260" fill="url(#gl)"/>
+    <rect x="55" y="55" width="690" height="890" rx="32" fill="none" stroke="${d.border}" stroke-opacity=".7" stroke-width="3"/>
+    <rect x="78" y="78" width="644" height="844" rx="25" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1"/>
+    <text x="400" y="430" text-anchor="middle" font-size="112" font-family="sans-serif" fill="#fff">${d.emoji}</text>
+    <text x="400" y="565" text-anchor="middle" font-size="42" font-family="Georgia,serif" letter-spacing="5" fill="#fff">${safe}</text>
+    <line x1="265" y1="600" x2="535" y2="600" stroke="#fff" stroke-opacity=".65"/>
+    <text x="400" y="645" text-anchor="middle" font-size="22" font-family="sans-serif" fill="#fff" fill-opacity=".9">${sub}</text>
+    <text x="400" y="870" text-anchor="middle" font-size="18" font-family="sans-serif" fill="#fff" fill-opacity=".7">HOVER TO OPEN</text>
   </svg>`);
 }
 function selectCover(key){
   const d=coverDesigns[key]; if(!d)return;
-  state.cover=coverSvg(d);
+  state.cover=coverSvg(d); state.theme=key;
   document.querySelectorAll('.cover-preset').forEach(b=>b.classList.toggle('active',b.dataset.cover===key));
   if(!state.photos.length){
     const names=['Memory','Smile','Moment','Forever'];
@@ -215,9 +163,32 @@ function renderGallery(){const g=$('#gallery');g.innerHTML='';$('#count').textCo
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function settingsFromUI(){state.settings={transition:$('#transition').value,autoplay:$('#autoplay').checked,float:$('#float').checked,shine:$('#shine').checked,glow:$('#glow').checked,tilt:$('#tilt').checked,particles:$('#particles').checked,duration:+$('#duration').value,radius:+$('#radius').value}}
 function particle(){if(!state.settings.particles)return '';return `<div class="particle">${Array.from({length:14},(_,i)=>`<i class="p" style="left:${8+i*6}%;top:${55+(i%4)*8}%;--x:${-50+i*9}px;animation-delay:${i*70}ms">${['✦','♥','✿','·'][i%4]}</i>`).join('')}</div>`}
-function render(){settingsFromUI();$('#empty').hidden=!state.cover;const m=$('#mount');if(!state.cover){m.hidden=true;return}m.hidden=false;const slides=state.photos.length?`<div class="face slides">${state.photos.map((p,i)=>`<div class="slide ${i===0?'active':''}" data-i="${i}"><img src="${p.url}"></div>`).join('')}</div>`:'';m.innerHTML=`<div class="card ${state.settings.float?'float':''} ${state.settings.glow?'glow':''}" style="--radius:${state.settings.radius}px">${slides}<div class="face cover"><img src="${state.cover}"></div>${state.settings.shine?'<div class="shine"></div>':''}${particle()}</div>`;const card=m.querySelector('.card'),cover=m.querySelector('.cover');let idx=0,timer;function next(){const ss=[...m.querySelectorAll('.slide')];if(!ss.length)return;ss[idx].classList.remove('active');idx=(idx+1)%ss.length;ss[idx].classList.add('active');if(state.settings.autoplay)timer=setTimeout(next,state.photos[idx].duration||state.settings.duration)}if(state.settings.autoplay&&state.photos.length>1)timer=setTimeout(next,state.photos[0].duration||state.settings.duration);card.addEventListener('mouseenter',()=>{cover.style.opacity='0';cover.style.transform=state.settings.transition==='flip'?'rotateY(180deg)':'scale(.96)';cover.style.filter=state.settings.transition==='zoom'?'blur(6px)':'';if(state.settings.particles)m.querySelectorAll('.p').forEach(x=>{x.style.animationPlayState='running'})});card.addEventListener('mouseleave',()=>{cover.style.opacity='1';cover.style.transform='';cover.style.filter=''}) ;if(state.settings.tilt){card.classList.add('tilt');card.addEventListener('mousemove',e=>{const r=card.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;card.style.transform=`rotateX(${y*-8}deg) rotateY(${x*10}deg)`});card.addEventListener('mouseleave',()=>card.style.transform='')}}
-function buildExport(){if(!state.cover||!state.photos.length)return '<!-- 표지와 사진을 먼저 넣어주세요 -->';const s=JSON.stringify({cover:state.cover,photos:state.photos,settings:state.settings});return `<!doctype html><html><meta charset="utf-8"><style>body{margin:0;display:grid;place-items:center;min-height:100vh;background:transparent}.hc{width:min(420px,90vw);aspect-ratio:4/5;position:relative;overflow:hidden;border-radius:${state.settings.radius}px;cursor:pointer;perspective:1200px;box-shadow:0 20px 45px #0006}.hc img{width:100%;height:100%;object-fit:cover}.ph{position:absolute;inset:0;opacity:0;transition:opacity .6s,transform .6s}.ph.on{opacity:1}.cover{position:absolute;inset:0;z-index:3;transition:opacity .6s,transform .6s}.shine{position:absolute;inset:-50%;background:linear-gradient(110deg,transparent 35%,#fff8 48%,transparent 60%);transform:translateX(-60%) rotate(12deg);transition:transform .9s;pointer-events:none;z-index:5}.hc:hover .shine{transform:translateX(60%) rotate(12deg)}.hc:hover .cover{opacity:0;transform:${state.settings.transition==='flip'?'rotateY(180deg)':'scale(.96)'}}.p{position:absolute;z-index:6;animation:r 2s linear infinite;opacity:0}@keyframes r{10%{opacity:1}100%{transform:translateY(-100px) rotate(35deg);opacity:0}}</style><div class="hc" id="hc"><div id="slides">${state.photos.map((p,i)=>`<div class="ph ${i===0?'on':''}"><img src="${p.url}"></div>`).join('')}</div><div class="cover"><img src="${state.cover}"></div>${state.settings.shine?'<div class="shine"></div>':''}${state.settings.particles?'<i class="p" style="left:20%;top:65%">✦</i><i class="p" style="left:55%;top:75%;animation-delay:.5s">♥</i>':''}</div><script>(function(){const a=${s};let i=0,els=[...document.querySelectorAll('.ph')];function n(){els[i].classList.remove('on');i=(i+1)%els.length;els[i].classList.add('on');setTimeout(n,a.photos[i].duration||a.settings.duration)}${state.settings.autoplay?'setTimeout(n,a.photos[0].duration||a.settings.duration);':''}})();<\/script></html>`}
-$('#coverFile').onchange=async e=>{if(e.target.files[0]){state.cover=await readFile(e.target.files[0]);document.querySelectorAll('.cover-preset').forEach(b=>b.classList.remove('active'));render()}};$('#photos').onchange=async e=>{for(const f of e.target.files) addPhoto(await readFile(f),f.name);e.target.value=''};$('#clearPhotos').onclick=()=>{state.photos=[];renderGallery();render()};$('#addDemo').onclick=()=>{const sets=[['Dream','#d98ab8','#7750a8'],['Moon','#4e68ad','#161a38'],['Bloom','#9ed5b7','#5f76c8'],['Letter','#d9b98b','#72544c']];state.photos=[];sets.forEach((x,i)=>state.photos.push({url:svgData(x[0],x[1],x[2]),name:x[0],duration:state.settings.duration}));if(!state.cover)state.cover=svgData('OPEN ME','#dca7ff','#6c5a9e');renderGallery();render()};document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{
+function render(){
+  settingsFromUI();$('#empty').hidden=!state.cover;const m=$('#mount');
+  if(!state.cover){m.hidden=true;return} m.hidden=false;
+  const themeKey=state.theme&&themeScenes[state.theme]?state.theme:null;
+  const first=state.photos[0];
+  const scene=themeKey&&first?sceneMarkup(themeKey,first):'';
+  const slides=state.photos.length?`<div class="face slides">${state.photos.map((p,i)=>`<div class="slide ${i===0?'active':''}" data-i="${i}"><img src="${p.url}"></div>`).join('')}</div>`:'';
+  m.innerHTML=sceneStyles()+`<div class="card ${state.settings.float?'float':''} ${state.settings.glow?'glow':''} ${themeKey?'themed-card':''}" data-theme="${themeKey||''}" style="--radius:${state.settings.radius}px">${slides}${scene}<div class="face cover"><img src="${state.cover}"></div>${state.settings.shine?'<div class="shine"></div>':''}${particle()}</div>`;
+  const card=m.querySelector('.card'),cover=m.querySelector('.cover'),sceneEl=m.querySelector('.memory-scene');let idx=0,timer;
+  function syncScene(){if(sceneEl&&state.photos.length){sceneEl.outerHTML=sceneMarkup(themeKey,state.photos[idx]);}}
+  function next(){const ss=[...m.querySelectorAll('.slide')];if(!ss.length)return;ss[idx].classList.remove('active');idx=(idx+1)%ss.length;ss[idx].classList.add('active');syncScene();if(state.settings.autoplay)timer=setTimeout(next,state.photos[idx].duration||state.settings.duration)}
+  if(state.settings.autoplay&&state.photos.length>1)timer=setTimeout(next,state.photos[0].duration||state.settings.duration);
+  function open(){cover.style.opacity='0';cover.style.transform=state.settings.transition==='flip'?'rotateY(180deg)':'scale(.96)';cover.style.filter=state.settings.transition==='zoom'?'blur(6px)':'';if(sceneEl)sceneEl.style.opacity='1';if(state.settings.particles)m.querySelectorAll('.p').forEach(x=>x.style.animationPlayState='running')}
+  function close(){cover.style.opacity='1';cover.style.transform='';cover.style.filter='';}
+  card.addEventListener('mouseenter',open);card.addEventListener('mouseleave',close);card.addEventListener('touchstart',()=>{if(cover.style.opacity==='0')close();else open()},{passive:true});
+  if(state.settings.tilt){card.classList.add('tilt');card.addEventListener('mousemove',e=>{const r=card.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;card.style.transform=`rotateX(${y*-8}deg) rotateY(${x*10}deg)`});card.addEventListener('mouseleave',()=>card.style.transform='')}
+}
+function buildExport(){
+ if(!state.cover||!state.photos.length)return '<!-- 표지와 사진을 먼저 넣어주세요 -->';
+ const sdata=JSON.stringify({cover:state.cover,photos:state.photos,theme:state.theme,settings:state.settings});
+ const themes=JSON.stringify(themeScenes);
+ const css=sceneStyles().replace(/^<style>|<\/style>$/g,'');
+ const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+ return `<!doctype html><html><meta charset="utf-8"><style>body{margin:0;display:grid;place-items:center;min-height:100vh;background:transparent}.hc{width:min(420px,90vw);aspect-ratio:4/5;position:relative;overflow:hidden;border-radius:${state.settings.radius}px;cursor:pointer;perspective:1200px;box-shadow:0 20px 45px #0006}.hc img{width:100%;height:100%;object-fit:cover}.ph{position:absolute;inset:0;opacity:0;transition:opacity .6s,transform .6s}.ph.on{opacity:1}.cover{position:absolute;inset:0;z-index:5;transition:opacity .6s,transform .6s,filter .6s}.shine{position:absolute;inset:-50%;background:linear-gradient(110deg,transparent 35%,#fff8 48%,transparent 60%);transform:translateX(-60%) rotate(12deg);transition:transform .9s;pointer-events:none;z-index:9}.hc:hover .shine{transform:translateX(60%) rotate(12deg)}.hc:hover .cover{opacity:0;transform:${state.settings.transition==='flip'?'rotateY(180deg)':'scale(.96)'}}.p{position:absolute;z-index:10;animation:r 2s linear infinite;opacity:0}@keyframes r{10%{opacity:1}100%{transform:translateY(-100px) rotate(35deg);opacity:0}}${css}</style><div class="hc" id="hc"><div id="slides">${state.photos.map((p,i)=>`<div class="ph ${i===0?'on':''}"><img src="${esc(p.url)}"></div>`).join('')}</div><div id="sceneHost"></div><div class="cover"><img src="${esc(state.cover)}"></div>${state.settings.shine?'<div class="shine"></div>':''}${state.settings.particles?'<i class="p" style="left:20%;top:65%">✦</i><i class="p" style="left:55%;top:75%;animation-delay:.5s">♥</i>':''}</div><script>(function(){const a=${sdata},T=${themes};const host=document.getElementById('sceneHost');function scene(t,p){if(!t||!T[t])return '';const x=T[t];return '<div class="memory-scene '+x.class+'">'+x.decor+'<div class="scene-paper"><div class="scene-kicker">'+x.kicker+'</div><div class="scene-title">'+x.title+'</div><div class="scene-photo"><img src="'+p.url+'" alt=""></div><div class="scene-caption">'+x.sub+'</div><div class="scene-sign">with love · '+new Date().getFullYear()+'</div></div></div>'}let i=0;function render(){if(a.theme&&a.photos.length)host.innerHTML=scene(a.theme,a.photos[i]);}render();function n(){const els=[...document.querySelectorAll('.ph')];if(!els.length)return;els[i].classList.remove('on');i=(i+1)%els.length;els[i].classList.add('on');render();if(a.settings.autoplay&&els.length>1)setTimeout(n,a.photos[i].duration||a.settings.duration)}${state.settings.autoplay&&state.photos.length>1?'setTimeout(n,a.photos[0].duration||a.settings.duration);':''}})();<\/script></html>`
+}
+$('#coverFile').onchange=async e=>{if(e.target.files[0]){state.cover=await readFile(e.target.files[0]);state.theme=null;document.querySelectorAll('.cover-preset').forEach(b=>b.classList.remove('active'));render()}};$('#photos').onchange=async e=>{for(const f of e.target.files) addPhoto(await readFile(f),f.name);e.target.value=''};$('#clearPhotos').onclick=()=>{state.photos=[];renderGallery();render()};$('#addDemo').onclick=()=>{const sets=[['Dream','#d98ab8','#7750a8'],['Moon','#4e68ad','#161a38'],['Bloom','#9ed5b7','#5f76c8'],['Letter','#d9b98b','#72544c']];state.photos=[];sets.forEach((x,i)=>state.photos.push({url:svgData(x[0],x[1],x[2]),name:x[0],duration:state.settings.duration}));if(!state.cover)state.cover=svgData('OPEN ME','#dca7ff','#6c5a9e');renderGallery();render()};document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{
   const p=b.dataset.p;
   const map={romance:'love',night:'moon',fairy:'angel',vintage:'vintage'};
   selectCover(map[p]||'love');
@@ -227,9 +198,9 @@ $('#coverFile').onchange=async e=>{if(e.target.files[0]){state.cover=await readF
 });['transition','autoplay','float','shine','glow','tilt','particles','duration','radius'].forEach(id=>$('#'+id).addEventListener('input',()=>{if(id==='duration')$('#durv').textContent=(+$('#duration').value/1000).toFixed(1)+'초';if(id==='radius')$('#radiusv').textContent=$('#radius').value+'px';render()}));$('#copy').onclick=async()=>{const h=buildExport();$('#output').value=h;await navigator.clipboard.writeText(h);$('#copy').textContent='✓ 복사됨';setTimeout(()=>$('#copy').textContent='HTML 복사',1200)};$('#download').onclick=()=>{const h=buildExport();$('#output').value=h;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h],{type:'text/html'}));a.download='hover-bangsel.html';a.click()};$('#iframe').onclick=()=>{const h=buildExport();const b64=btoa(unescape(encodeURIComponent(h)));const code=`<iframe srcdoc="${h.replace(/"/g,'&quot;')}" style="width:100%;max-width:520px;height:650px;border:0"></iframe>`;$('#output').value=code;navigator.clipboard.writeText(code)};
 document.querySelectorAll('.cover-preset').forEach(b=>b.onclick=()=>selectCover(b.dataset.cover));
 $('#randomCover').onclick=()=>{const keys=Object.keys(coverDesigns);selectCover(keys[Math.floor(Math.random()*keys.length)])};
-$('#clearCover').onclick=()=>{state.cover=null;document.querySelectorAll('.cover-preset').forEach(b=>b.classList.remove('active'));render()};
+$('#clearCover').onclick=()=>{state.cover=null;state.theme=null;document.querySelectorAll('.cover-preset').forEach(b=>b.classList.remove('active'));render()};
 
-$('#reset').onclick=()=>{state.cover=null;state.photos=[];document.querySelectorAll('.cover-preset').forEach(b=>b.classList.remove('active'));$('#coverFile').value='';$('#photos').value='';renderGallery();render()};renderGallery();
+$('#reset').onclick=()=>{state.cover=null;state.theme=null;state.photos=[];document.querySelectorAll('.cover-preset').forEach(b=>b.classList.remove('active'));$('#coverFile').value='';$('#photos').value='';renderGallery();render()};renderGallery();
 
 // Fullscreen large preview modal
 const previewModal=$('#previewModal'), previewCardMount=$('#previewCardMount'), previewScale=$('#previewScale');
