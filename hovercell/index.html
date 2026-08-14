@@ -65,21 +65,21 @@ function readFile(f){return new Promise((res,rej)=>{const r=new FileReader();r.o
 function svgData(label,a,b){return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="800" height="1000" fill="url(#g)"/><circle cx="120" cy="160" r="110" fill="#fff3"/><circle cx="690" cy="760" r="180" fill="#fff2"/><text x="400" y="470" text-anchor="middle" fill="white" font-size="64" font-family="sans-serif">${label}</text><text x="400" y="535" text-anchor="middle" fill="#fff9" font-size="28" font-family="sans-serif">HOVER MEMORY</text></svg>`)}
 
 const coverDesigns={
- love:{label:'LOVE LETTER',sub:'open when you miss me',a:'#f6a8c8',b:'#80538f',emoji:'♡',border:'#fff8'},
- cherry:{label:'CHERRY BLOSSOM',sub:'a little memory for you',a:'#f7b8c8',b:'#b16c91',emoji:'✿',border:'#ffe9f2'},
- moon:{label:'MOONLIGHT',sub:'under the same moon',a:'#5269ad',b:'#141936',emoji:'☾',border:'#dce6ff'},
- ribbon:{label:'WITH LOVE',sub:'a tiny gift for you',a:'#e9a6c5',b:'#8e4e73',emoji:'🎀',border:'#fff3'},
- angel:{label:'ANGEL WING',sub:'you are my little miracle',a:'#dceaf2',b:'#9a9ed4',emoji:'♢',border:'#fff'},
- aurora:{label:'AURORA',sub:'a dream inside a dream',a:'#77cfc5',b:'#816ab9',emoji:'✦',border:'#e8ffff'},
- crystal:{label:'CRYSTAL',sub:'made of little sparkles',a:'#8bc9ef',b:'#8c71c8',emoji:'◇',border:'#eff9ff'},
- butterfly:{label:'BUTTERFLY',sub:'fly into my memory',a:'#caa9ee',b:'#6e78c8',emoji:'🦋',border:'#fff'},
- garden:{label:'WHITE GARDEN',sub:'soft days, warm memories',a:'#dce9d6',b:'#7eaa98',emoji:'❀',border:'#fff'},
- vintage:{label:'MY LETTER',sub:'for your precious moments',a:'#d7bb8c',b:'#70513f',emoji:'✉',border:'#fff3dc'},
- royal:{label:'ROYAL MEMORY',sub:'a special place for you',a:'#c8a1dd',b:'#513f77',emoji:'♕',border:'#fff4d6'},
- sweet:{label:'SWEET DAY',sub:'a little piece of happiness',a:'#f3b5a9',b:'#c27eaa',emoji:'🍰',border:'#fff'},
- music:{label:'MELODY',sub:'our favorite little song',a:'#9ab3dc',b:'#5c668f',emoji:'♫',border:'#fff'},
- magic:{label:'MAGIC SPELL',sub:'make a wish and open',a:'#b08be4',b:'#4d4a92',emoji:'✧',border:'#fff'},
- polaroid:{label:'DEAR MEMORY',sub:'one moment, forever',a:'#f1d4bb',b:'#a97d91',emoji:'▣',border:'#fff'}
+ love:{kind:'love',label:'LOVE LETTER',sub:'open when you miss me',a:'#f6a8c8',b:'#80538f',emoji:'♡',border:'#fff8'},
+ cherry:{kind:'cherry',label:'CHERRY BLOSSOM',sub:'a little memory for you',a:'#f7b8c8',b:'#b16c91',emoji:'✿',border:'#ffe9f2'},
+ moon:{kind:'moon',label:'MOONLIGHT',sub:'under the same moon',a:'#5269ad',b:'#141936',emoji:'☾',border:'#dce6ff'},
+ ribbon:{kind:'ribbon',label:'WITH LOVE',sub:'a tiny gift for you',a:'#e9a6c5',b:'#8e4e73',emoji:'🎀',border:'#fff3'},
+ angel:{kind:'angel',label:'ANGEL WING',sub:'you are my little miracle',a:'#dceaf2',b:'#9a9ed4',emoji:'♢',border:'#fff'},
+ aurora:{kind:'aurora',label:'AURORA',sub:'a dream inside a dream',a:'#77cfc5',b:'#816ab9',emoji:'✦',border:'#e8ffff'},
+ crystal:{kind:'crystal',label:'CRYSTAL',sub:'made of little sparkles',a:'#8bc9ef',b:'#8c71c8',emoji:'◇',border:'#eff9ff'},
+ butterfly:{kind:'butterfly',label:'BUTTERFLY',sub:'fly into my memory',a:'#caa9ee',b:'#6e78c8',emoji:'🦋',border:'#fff'},
+ garden:{kind:'garden',label:'WHITE GARDEN',sub:'soft days, warm memories',a:'#dce9d6',b:'#7eaa98',emoji:'❀',border:'#fff'},
+ vintage:{kind:'vintage',label:'MY LETTER',sub:'for your precious moments',a:'#d7bb8c',b:'#70513f',emoji:'✉',border:'#fff3dc'},
+ royal:{kind:'royal',label:'ROYAL MEMORY',sub:'a special place for you',a:'#c8a1dd',b:'#513f77',emoji:'♕',border:'#fff4d6'},
+ sweet:{kind:'sweet',label:'SWEET DAY',sub:'a little piece of happiness',a:'#f3b5a9',b:'#c27eaa',emoji:'🍰',border:'#fff'},
+ music:{kind:'music',label:'MELODY',sub:'our favorite little song',a:'#9ab3dc',b:'#5c668f',emoji:'♫',border:'#fff'},
+ magic:{kind:'magic',label:'MAGIC SPELL',sub:'make a wish and open',a:'#b08be4',b:'#4d4a92',emoji:'✧',border:'#fff'},
+ polaroid:{kind:'polaroid',label:'DEAR MEMORY',sub:'one moment, forever',a:'#f1d4bb',b:'#a97d91',emoji:'▣',border:'#fff'}
 };
 function coverSvg(d){
   const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
