@@ -75,6 +75,15 @@ async function trimImageCache() {
   }
 }
 
+// 네트워크가 느리거나 응답이 아예 안 올 때(요청이 무한 대기 상태로 멈추는 것) 대비.
+// 정해진 시간(기본 12초) 안에 응답이 없으면 실패로 처리해서, 화면에 "로딩중" 스피너가
+// 영원히 멈춰있지 않고 최소한 "불러올 수 없어요" 에러로라도 넘어가게 함.
+function fetchWithTimeout(req, ms = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(req, { signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -88,7 +97,7 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(req);
         if (cached) return cached;
         try {
-          const res = await fetch(req);
+          const res = await fetchWithTimeout(req, 12000);
           if (res && res.ok) {
             cache.put(req, res.clone());
             trimImageCache();

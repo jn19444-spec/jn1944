@@ -14,6 +14,11 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// 게시글 삭제할 때 Cloudinary의 실제 이미지도 지워달라고 요청 보낼 주소예요.
+// 사이트는 GitHub Pages, 이 삭제 기능은 Vercel에 따로 올려서 서로 다른 주소예요.
+// Vercel에 배포한 뒤 나온 실제 주소로 아래 한 줄만 바꿔주세요. (예: https://jn1944-api.vercel.app/api/delete-images)
+const DELETE_IMAGES_API_URL = "https://YOUR-VERCEL-PROJECT.vercel.app/api/delete-images";
+
 // 이미지/음악 파일 업로드용 Cloudinary 설정 (https://cloudinary.com 무료 가입 후 발급)
 // (예전엔 이미지는 ImgBB를 따로 썼는데, 공용 무료 키가 불안정해져서 음악과 같은 Cloudinary로 통합했어요.)
 // 1) cloudinary.com 가입 → 대시보드에서 "Cloud name" 확인
@@ -3954,8 +3959,26 @@ function tryDeleteImgbbImages(deleteUrls) {
   });
 }
 
+// 게시글을 지울 때 Cloudinary에 남은 실제 이미지도 지우려고 시도해요.
+// Cloudinary는 API Secret이 있어야 지울 수 있어서(브라우저에 두면 위험함), 그 시크릿을
+// 갖고 있는 작은 서버 함수(/api/delete-images)에 "이 사람 이미지들 지워줘"라고 부탁하는 방식이에요.
+// 이것도 실패해도 게시글 삭제 자체는 막지 않아요 — 어디까지나 "되면 좋고" 정리예요.
+async function tryDeleteCloudinaryImages(publicIds) {
+  const ids = (publicIds || []).filter(Boolean);
+  if (ids.length === 0) return;
+  try {
+    const idToken = currentUser ? await currentUser.getIdToken() : null;
+    if (!idToken) return;
+    await fetch(DELETE_IMAGES_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken, publicIds: ids }),
+    });
+  } catch (e) {}
+}
+
 // 게시글 삭제 여러 곳(알림함, 게시글 관리 일괄삭제 등)에서 공통으로 써요.
-// 문서를 미리 한 번 읽어서 imageDeleteUrls를 챙긴 다음 지워요.
+// 문서를 미리 한 번 읽어서 imageDeleteUrls/imagePublicIds를 챙긴 다음 지워요.
 async function deletePostAndImages(postId) {
   try {
     const snap = await getDoc(doc(db, "posts", postId));
@@ -3963,6 +3986,7 @@ async function deletePostAndImages(postId) {
       const d = snap.data();
       tryDeleteImgbbImages(d.imageDeleteUrls);
       tryDeleteImgbbImages(d.hoverCellDeleteUrls);
+      await tryDeleteCloudinaryImages([...(d.imagePublicIds || []), ...(d.hoverCellPublicIds || [])]);
     }
   } catch (e) {}
   await deleteDoc(doc(db, "posts", postId));
