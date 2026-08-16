@@ -14,10 +14,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ImgBB 이미지 업로드용 API 키 (https://api.imgbb.com/ 에서 무료 발급)
-const IMGBB_API_KEY = "9e855746835f598edb43a283d0219413";
-
-// 음악 파일 업로드용 Cloudinary 설정 (https://cloudinary.com 무료 가입 후 발급)
+// 이미지/음악 파일 업로드용 Cloudinary 설정 (https://cloudinary.com 무료 가입 후 발급)
+// (예전엔 이미지는 ImgBB를 따로 썼는데, 공용 무료 키가 불안정해져서 음악과 같은 Cloudinary로 통합했어요.)
 // 1) cloudinary.com 가입 → 대시보드에서 "Cloud name" 확인
 // 2) Settings → Upload → Upload presets → "Add upload preset" → Signing Mode를 Unsigned로 설정 → 이름 확인
 // 아래 두 값을 본인 계정 값으로 바꿔주세요.
@@ -645,7 +643,7 @@ async function migrateAllImages() {
         if (!resp.ok) throw new Error("이미지를 가져오지 못함");
         const blob = await resp.blob();
         const file = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-        const { url: newUrl, thumbUrl, deleteUrl } = await uploadToImgBB(file); // 리사이즈 후 재업로드
+        const { url: newUrl, thumbUrl, deleteUrl } = await uploadToCloudinary(file); // 리사이즈 후 재업로드
         return { ok: true, url: newUrl, thumbUrl, deleteUrl };
       } catch (err) {
         return { ok: false, url, thumbUrl: oldThumbs[j] || url, deleteUrl: oldDeleteUrls[j] || null };
@@ -1639,24 +1637,28 @@ async function resizeImageFile(file, maxDim = 1600, quality = 0.85) {
   }
 }
 
-// ImgBB는 업로드하면 원본 외에 작은 썸네일(약 160px)도 같이 만들어줘요.
-// 목록 화면처럼 작게 보여줄 땐 이 썸네일을 쓰면 훨씬 가볍고 빨라요.
-// delete_url은 나중에 게시글을 지울 때 ImgBB에서도 같이 지우는 용도로 저장해둬요.
-// 반환값: { url: 원본(리사이즈된) 이미지, thumbUrl: 목록용 작은 썸네일, deleteUrl: 삭제용 링크 }
-async function uploadToImgBB(file) {
+// Cloudinary는 delete_url 같은 걸 클라이언트에 주지 않아요(삭제는 API 시크릿이 있어야 가능).
+// 그래서 deleteUrl은 항상 null로 두고, 게시글을 지워도 Cloudinary에 남은 파일은 그대로 둬요
+// (25GB 무료 한도 안에서는 문제 없고, 나중에 관리자 콘솔에서 한꺼번에 정리하면 돼요).
+// 썸네일은 Cloudinary URL의 /upload/ 뒤에 변환 옵션(w_300,c_limit,q_auto)을 끼워넣어서 즉석으로 만들어요.
+// 반환값: { url: 원본(리사이즈된) 이미지, thumbUrl: 목록용 작은 썸네일, deleteUrl: 항상 null }
+function toCloudinaryThumb(url) {
+  return url.replace("/upload/", "/upload/w_300,c_limit,q_auto/");
+}
+async function uploadToCloudinary(file) {
   const resized = await resizeImageFile(file);
   const formData = new FormData();
-  formData.append("image", resized);
-  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+  formData.append("file", resized);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
     method: "POST",
     body: formData,
   });
   const data = await res.json();
-  if (!data.success) throw new Error(data.error?.message || "업로드 실패");
-  const url = data.data.url;
-  const thumbUrl = data.data.thumb?.url || data.data.medium?.url || url;
-  const deleteUrl = data.data.delete_url || null;
-  return { url, thumbUrl, deleteUrl };
+  if (!data.secure_url) throw new Error(data.error?.message || "업로드 실패");
+  const url = data.secure_url;
+  const thumbUrl = toCloudinaryThumb(url);
+  return { url, thumbUrl, deleteUrl: null };
 }
 
 function renderImagePreviews() {
@@ -1685,7 +1687,7 @@ function renderImagePreviews() {
         statusEl.classList.remove("hidden", "error");
         statusEl.textContent = `이미지 ${idx + 1}번을 새 이미지로 교체하는 중...`;
         try {
-          const r = await uploadToImgBB(file);
+          const r = await uploadToCloudinary(file);
           if (oldDeleteUrl) replacedImageDeleteUrls.push(oldDeleteUrl);
           selectedImageUrls[idx] = r.url;
           selectedImageThumbUrls[idx] = r.thumbUrl;
@@ -1782,8 +1784,8 @@ async function importHoverCellHtml(file) {
 
     const baseFile = dataUrlToFile(baseSrc, "hover-base.webp");
     const overlayFile = dataUrlToFile(overlaySrc, "hover-overlay.webp");
-    statusEl.textContent = "호버방셀 이미지 2장을 ImgBB에 올리는 중...";
-    const [base, overlay] = await Promise.all([uploadToImgBB(baseFile), uploadToImgBB(overlayFile)]);
+    statusEl.textContent = "호버방셀 이미지 2장을 Cloudinary에 올리는 중...";
+    const [base, overlay] = await Promise.all([uploadToCloudinary(baseFile), uploadToCloudinary(overlayFile)]);
 
     const mb = doc.querySelector(".hc-mb, .mb");
     const revealMode = mb?.getAttribute("data-reveal") || "fade";
@@ -1845,7 +1847,7 @@ async function uploadFilesToPreview(files) {
   // 한 장씩 순서대로 기다리지 않고 전부 동시에 업로드해요. 순서는 Promise.all이 보장해줘서
   // 먼저 끝난 게 있어도 선택한 순서 그대로 미리보기에 붙어요.
   const results = await Promise.all(files.map(file =>
-    uploadToImgBB(file)
+    uploadToCloudinary(file)
       .then((res) => {
         done++;
         if (!hadError) statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
@@ -2779,7 +2781,7 @@ el("topMenuImageFiles").addEventListener("change", async (e) => {
   let hadError = false;
 
   const results = await Promise.all(files.map(file =>
-    uploadToImgBB(file)
+    uploadToCloudinary(file)
       .then((res) => {
         done++;
         if (!hadError) statusEl.textContent = `이미지 업로드 중... (${done}/${files.length})`;
@@ -2842,7 +2844,7 @@ function nextMusicOrder() {
   return Math.max(...musicTracks.map(r => r.order || 0)) + 10;
 }
 
-// 오디오 파일을 Cloudinary에 업로드해요(관리자 전용). 이미지의 uploadToImgBB와 같은 역할.
+// 오디오 파일을 Cloudinary에 업로드해요(관리자 전용). 이미지의 uploadToCloudinary와 같은 역할.
 async function uploadAudioToCloudinary(file) {
   const formData = new FormData();
   formData.append("file", file);
@@ -3585,7 +3587,7 @@ el("restoreZipBtn").addEventListener("click", async () => {
   if (!confirm(
     "백업 zip 파일로 복원할까요?\n\n" +
     "- 이미 있는 게시판/게시글은 그대로 두고, 없는 것만 새로 만들어요(덮어쓰기 없음)\n" +
-    "- 사진은 전부 새로 ImgBB에 다시 올라가서 시간이 걸릴 수 있어요\n" +
+    "- 사진은 전부 새로 Cloudinary에 다시 올라가서 시간이 걸릴 수 있어요\n" +
     "- 게시글이 많으면 몇 분 걸릴 수 있어요, 끝날 때까지 창을 닫지 말아주세요"
   )) return;
 
@@ -3645,7 +3647,7 @@ el("restoreZipBtn").addEventListener("click", async () => {
           if (!entry) throw new Error("zip 안에 파일이 없어요");
           const blob = await entry.async("blob");
           const upFile = new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-          const { url, thumbUrl, deleteUrl } = await uploadToImgBB(upFile);
+          const { url, thumbUrl, deleteUrl } = await uploadToCloudinary(upFile);
           newUrls.push(url); newThumbs.push(thumbUrl); newDeleteUrls.push(deleteUrl || null);
           imagesRestored++;
         } catch (e) {
@@ -3797,7 +3799,7 @@ el("offlineImportBtn").addEventListener("click", async () => {
       for (let i = 0; i < images.length; i++) {
         try {
           const f2 = dataUrlToFile(images[i], `image-${i}.jpg`);
-          const { url, thumbUrl, deleteUrl } = await uploadToImgBB(f2);
+          const { url, thumbUrl, deleteUrl } = await uploadToCloudinary(f2);
           newUrls.push(url); newThumbs.push(thumbUrl); newDeleteUrls.push(deleteUrl || null);
           imagesUploaded++;
         } catch (e) {
