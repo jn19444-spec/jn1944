@@ -17,7 +17,7 @@ const db = getFirestore(app);
 // 게시글 삭제할 때 Cloudinary의 실제 이미지도 지워달라고 요청 보낼 주소예요.
 // 사이트는 GitHub Pages, 이 삭제 기능은 Vercel에 따로 올려서 서로 다른 주소예요.
 // Vercel에 배포한 뒤 나온 실제 주소로 아래 한 줄만 바꿔주세요. (예: https://jn1944-api.vercel.app/api/delete-images)
-const DELETE_IMAGES_API_URL = "https://YOUR-VERCEL-PROJECT.vercel.app/api/delete-images";
+const DELETE_IMAGES_API_URL = "https://jn1944.vercel.app/api/delete-images";
 
 // 이미지/음악 파일 업로드용 Cloudinary 설정 (https://cloudinary.com 무료 가입 후 발급)
 // (예전엔 이미지는 ImgBB를 따로 썼는데, 공용 무료 키가 불안정해져서 음악과 같은 Cloudinary로 통합했어요.)
