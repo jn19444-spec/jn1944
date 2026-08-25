@@ -2097,6 +2097,8 @@ async function loadAllPosts() {
 }
 
 // ---------- 사진 갤러리 (모든 게시글의 사진만 모아서 그리드로 보기) ----------
+let currentGalleryItems = []; // [{url, title, postId}, ...] — 전체 다운로드 버튼이 이걸 씀
+
 async function loadGalleryImages() {
   const myToken = ++navToken;
   const gridEl = el("galleryGrid");
@@ -2127,11 +2129,15 @@ async function loadGalleryImages() {
   });
 
   gridEl.innerHTML = "";
+  currentGalleryItems = items;
+  el("galleryDownloadStatus").classList.add("hidden");
   if (!items.length) {
     el("galleryEmpty").classList.remove("hidden");
+    el("galleryDownloadAllBtn").classList.add("hidden");
     return;
   }
   el("galleryEmpty").classList.add("hidden");
+  el("galleryDownloadAllBtn").classList.remove("hidden");
 
   const allUrls = items.map(it => it.url);
   const captions = items.map(it => ({ title: it.title, postId: it.postId }));
@@ -2143,6 +2149,58 @@ async function loadGalleryImages() {
     gridEl.appendChild(tile);
   });
 }
+
+// 갤러리에 보이는 사진 전체를 zip 하나로 묶어서 다운로드해요.
+el("galleryDownloadAllBtn").addEventListener("click", async () => {
+  const btn = el("galleryDownloadAllBtn");
+  const statusEl = el("galleryDownloadStatus");
+  if (!currentGalleryItems.length) return;
+
+  btn.disabled = true;
+  statusEl.classList.remove("hidden");
+  try {
+    const zip = new JSZip();
+    const usedNames = new Set();
+    let done = 0, failed = 0;
+    const total = currentGalleryItems.length;
+    statusEl.textContent = `사진 받는 중... (0/${total})`;
+
+    await mapWithConcurrency(currentGalleryItems, 4, async (item) => {
+      try {
+        const resp = await fetch(item.url);
+        if (!resp.ok) throw new Error("다운로드 실패");
+        const blob = await resp.blob();
+        const ext = guessExtFromBlob(blob, item.url);
+        let base = (item.title || "사진").replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
+        let name = `${base}.${ext}`;
+        let n = 2;
+        while (usedNames.has(name)) { name = `${base}-${n}.${ext}`; n++; }
+        usedNames.add(name);
+        zip.file(name, blob);
+      } catch (e) {
+        failed++;
+      }
+      done++;
+      statusEl.textContent = `사진 받는 중... (${done}/${total})`;
+    });
+
+    statusEl.textContent = "압축 파일 만드는 중...";
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gugu-gallery-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = `완료! 사진 ${total - failed}개 다운로드했어요.` + (failed ? ` (${failed}개는 실패)` : "");
+  } catch (e) {
+    statusEl.textContent = "다운로드 실패: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ---------- 상세보기 ----------
 async function openPost(postId, opts = {}) {
@@ -3393,6 +3451,36 @@ async function loadStats() {
   });
 }
 
+// ---------- 이미지 다운로드 공용 함수 ----------
+// 사진 URL을 받아서 실제 파일로 저장해줘요. (그냥 <a download>만 쓰면 다른 도메인 이미지는
+// 새 탭에서 열리기만 하고 저장이 안 되는 경우가 많아서, blob으로 받아서 강제로 다운로드시켜요)
+function guessExtFromBlob(blob, fallbackUrl) {
+  const fromType = (blob.type || "").split("/")[1];
+  if (fromType) return fromType.replace("jpeg", "jpg").split(";")[0];
+  const m = (fallbackUrl || "").match(/\.(\w{2,4})(?:\?|#|$)/);
+  return m ? m[1] : "jpg";
+}
+async function downloadImage(url, filenameBase) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("다운로드 실패");
+    const blob = await resp.blob();
+    const ext = guessExtFromBlob(blob, url);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${filenameBase}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    return true;
+  } catch (e) {
+    // blob으로 못 받아오면(네트워크 문제 등) 그냥 새 탭에서라도 열어줘요
+    window.open(url, "_blank");
+    return false;
+  }
+}
+
 // ---------- 이미지 확대보기(라이트박스) ----------
 let lightboxImages = [];
 let lightboxIndex = 0;
@@ -3439,6 +3527,12 @@ function closeLightbox() {
   el("lightbox").classList.add("hidden");
 }
 el("lightboxClose").addEventListener("click", closeLightbox);
+el("lightboxDownload").addEventListener("click", () => {
+  const cap = lightboxCaptions && lightboxCaptions[lightboxIndex];
+  const base = (cap && cap.title ? cap.title : "사진").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
+  const suffix = lightboxImages.length > 1 ? `-${lightboxIndex + 1}` : "";
+  downloadImage(lightboxImages[lightboxIndex], `${base}${suffix}`);
+});
 el("lightbox").addEventListener("click", (e) => {
   if (e.target.id === "lightbox") closeLightbox();
 });

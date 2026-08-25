@@ -141,7 +141,9 @@
     <section id="galleryView" class="hidden">
       <div class="content-header">
         <h2>📷 사진 갤러리</h2>
+        <button id="galleryDownloadAllBtn" class="btn btn-ghost gallery-download-all-btn hidden">⬇ 전체 다운로드</button>
       </div>
+      <p id="galleryDownloadStatus" class="hint-text hidden"></p>
       <div id="galleryGrid" class="gallery-grid"></div>
       <div id="galleryEmpty" class="empty-state hidden"><p>아직 사진이 없어요.</p></div>
     </section>
@@ -466,6 +468,7 @@
 <!-- 이미지 확대보기 -->
 <div id="lightbox" class="lightbox hidden">
   <button id="lightboxClose" class="lightbox-close" title="닫기">✕</button>
+  <button id="lightboxDownload" class="lightbox-download" title="이 사진 다운로드">⬇</button>
   <button id="lightboxPrev" class="lightbox-nav lightbox-prev hidden" title="이전">‹</button>
   <span id="lightboxSpinner" class="img-spinner hidden"></span>
   <img id="lightboxImg" src="" alt="">
