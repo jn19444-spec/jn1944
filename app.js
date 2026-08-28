@@ -1376,7 +1376,12 @@ el("liveMemberAddBtn").addEventListener("click", async () => {
   const bjId = el("liveMemberBjIdInput").value.trim();
   const groupName = el("liveMemberGroupInput").value.trim();
   if (!name || !bjId) { alert("이름과 SOOP 아이디는 꼭 입력해주세요."); return; }
-  await addDoc(collection(db, "liveMembers"), { name, bjId, groupName, order: nextLiveMemberOrder() });
+  try {
+    await addDoc(collection(db, "liveMembers"), { name, bjId, groupName, order: nextLiveMemberOrder() });
+  } catch (err) {
+    alert("로스터 추가에 실패했어요: " + (err.code || err.message));
+    return;
+  }
   el("liveMemberNameInput").value = "";
   el("liveMemberBjIdInput").value = "";
   el("liveMemberGroupInput").value = "";
@@ -1603,16 +1608,76 @@ function hideHomeDashboard() {
   el("homeDashboard").classList.add("hidden");
   el("listContentHeader").classList.remove("hidden");
   el("layoutEl").classList.remove("no-sidebar");
-  el("layoutEl").classList.remove("sidebar-open");
   el("boardMenuBtn").classList.add("hidden");
+  closeBoardMenuDropdown();
 }
 
-// 메인화면(깔끔 모드)에서 상단 "📋 게시판 목록" 버튼을 누르면 왼쪽 사이드바가 덮개로 열려요.
-el("boardMenuBtn").addEventListener("click", () => {
-  el("layoutEl").classList.toggle("sidebar-open");
-});
-el("sidebarBackdrop").addEventListener("click", () => {
-  el("layoutEl").classList.remove("sidebar-open");
+// 메인화면(깔끔 모드)에서 상단 "📋 게시판 목록" 버튼을 누르면 공지함처럼
+// 버튼 바로 아래에 게시판 목록이 드롭다운으로 개별 항목으로 나와요.
+function renderBoardMenuDropdown() {
+  const wrap = el("boardMenuDropdown");
+  wrap.innerHTML = "";
+
+  const allItem = document.createElement("div");
+  allItem.className = "board-item all-board-item" + (currentBoardId === "__all__" ? " active" : "");
+  allItem.innerHTML = "📋 전체 게시판";
+  allItem.addEventListener("click", () => { closeBoardMenuDropdown(); selectAllBoards(); });
+  wrap.appendChild(allItem);
+
+  const galleryItem = document.createElement("div");
+  galleryItem.className = "board-item all-board-item" + (currentBoardId === "__gallery__" ? " active" : "");
+  galleryItem.innerHTML = "📷 사진 갤러리";
+  galleryItem.addEventListener("click", () => { closeBoardMenuDropdown(); selectGallery(); });
+  wrap.appendChild(galleryItem);
+
+  if (currentUser) {
+    const favItem = document.createElement("div");
+    favItem.className = "board-item all-board-item" + (currentBoardId === "__favorites__" ? " active" : "");
+    favItem.innerHTML = "⭐ 즐겨찾기";
+    favItem.addEventListener("click", () => { closeBoardMenuDropdown(); selectFavorites(); });
+    wrap.appendChild(favItem);
+  }
+
+  boardRows.forEach(row => {
+    if (row.type === "divider") {
+      const hr = document.createElement("div");
+      hr.style.borderTop = "1px solid var(--line)";
+      hr.style.margin = "6px 4px";
+      wrap.appendChild(hr);
+      return;
+    }
+    if (row.type === "group") {
+      const title = document.createElement("div");
+      title.className = "board-group-title";
+      title.textContent = row.name;
+      wrap.appendChild(title);
+      return;
+    }
+    if (!canViewBoard(row)) return;
+    const itemDiv = document.createElement("div");
+    itemDiv.className = "board-item" + (row.id === currentBoardId ? " active" : "");
+    itemDiv.innerHTML = (getVisibility(row) === "private" ? '<span class="lock-icon">🔒</span> ' : visibilityIcon(row)) + escapeHtml(row.name);
+    itemDiv.addEventListener("click", () => { closeBoardMenuDropdown(); selectBoard(row); });
+    wrap.appendChild(itemDiv);
+  });
+}
+
+function closeBoardMenuDropdown() {
+  el("boardMenuDropdown").classList.remove("open");
+  el("boardMenuDropdown").classList.add("hidden");
+  document.removeEventListener("click", onDocClickCloseBoardMenu);
+}
+function onDocClickCloseBoardMenu(e) {
+  if (!e.target.closest("#boardMenuWrap")) closeBoardMenuDropdown();
+}
+el("boardMenuBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const wrap = el("boardMenuDropdown");
+  if (wrap.classList.contains("open")) { closeBoardMenuDropdown(); return; }
+  wrap.classList.remove("hidden");
+  wrap.classList.add("open");
+  renderBoardMenuDropdown();
+  document.addEventListener("click", onDocClickCloseBoardMenu);
 });
 
 el("homeBtn").addEventListener("click", () => {

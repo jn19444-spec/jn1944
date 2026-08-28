@@ -140,6 +140,11 @@ body{
 .notice-item-actions button:hover{ color:var(--accent-teal); background:var(--bg-panel); }
 .notice-item-actions button.danger:hover{ color:var(--accent-rose); }
 
+/* ---------- 상단 "게시판 목록" 버튼 드롭다운 ---------- */
+.board-menu-dropdown{ width:240px; padding:6px; }
+.board-menu-dropdown .board-item{ border-radius:8px; }
+.board-menu-dropdown .board-group-title{ padding:10px 10px 4px; }
+
 /* ---------- buttons ---------- */
 .btn{
   border-radius:999px;
@@ -201,29 +206,7 @@ body{
   .layout{grid-template-columns:1fr;}
 }
 
-/* ---------- 상단 "게시판 목록" 버튼으로 여는 사이드바 덮개 ---------- */
-.sidebar-backdrop{
-  display:none;
-  position:fixed; inset:0;
-  background:rgba(0,0,0,.55);
-  z-index:90;
-}
-.layout.sidebar-open .sidebar-backdrop{ display:block; }
 
-.layout.no-sidebar.sidebar-open .sidebar{
-  display:flex; flex-direction:column;
-  position:fixed; top:0; left:0; bottom:0;
-  width:280px; max-width:85vw;
-  margin:0; padding:20px 14px; overflow-y:auto;
-  background:var(--bg-panel);
-  z-index:95;
-  box-shadow:2px 0 24px rgba(0,0,0,.45);
-  animation:sidebarSlideIn .18s ease;
-}
-@keyframes sidebarSlideIn{
-  from{ transform:translateX(-100%); }
-  to{ transform:translateX(0); }
-}
 
 /* ---------- sidebar ---------- */
 .profile-card{

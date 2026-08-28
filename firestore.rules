@@ -55,6 +55,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- 라이브 로스터(메인화면 LIVE 목록 방송인 명단) ----------
+    match /liveMembers/{memberId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ---------- 회원 ----------
     match /members/{uid} {
       allow read: if true;
