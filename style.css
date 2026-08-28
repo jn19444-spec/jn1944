@@ -190,7 +190,13 @@ body{
   display:grid; grid-template-columns:250px 1fr;
   gap:24px; padding:24px 20px 80px;
   align-items:start;
+  transition:grid-template-columns .15s ease;
 }
+.layout.no-sidebar{
+  grid-template-columns:1fr;
+  max-width:1280px;
+}
+.layout.no-sidebar .sidebar{ display:none; }
 @media (max-width:820px){
   .layout{grid-template-columns:1fr;}
 }
@@ -298,35 +304,75 @@ body{
 }
 
 .live-roster-grid{
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
-  gap:10px;
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+  gap:16px;
 }
 .live-member-card{
-  display:flex; align-items:center; gap:12px;
-  background:var(--bg-panel); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+  background:var(--bg-panel); border:1px solid var(--line-soft); border-radius:var(--radius);
   box-shadow:var(--shadow-card);
-  padding:12px; cursor:pointer;
-  transition:border-color .15s ease, transform .12s ease;
+  cursor:pointer; overflow:hidden;
+  transition:border-color .15s ease, transform .12s ease, box-shadow .12s ease;
 }
-.live-member-card.is-live:hover{ border-color:var(--accent-rose); transform:translateY(-2px); }
-.live-member-card.is-offline{ opacity:.7; }
-.live-member-card.is-offline:hover{ opacity:1; border-color:var(--accent-teal); }
-.live-member-avatar{
-  position:relative; flex-shrink:0; width:44px; height:44px; border-radius:50%;
+
+/* -- 방송 중 카드: 큰 썸네일 + 상세 정보 -- */
+.live-member-card.is-live{ display:flex; flex-direction:column; }
+.live-member-card.is-live:hover{ border-color:var(--accent-rose); transform:translateY(-3px); box-shadow:0 18px 36px -16px rgba(255,93,115,.4); }
+.live-member-thumb{
+  position:relative; width:100%; aspect-ratio:16/9;
+  background:linear-gradient(135deg, var(--bg-panel-3), var(--bg-panel-2));
+  overflow:hidden; flex-shrink:0;
+}
+.live-member-thumb img{ width:100%; height:100%; object-fit:cover; display:block; filter:saturate(1.05); }
+.live-member-thumb-initial{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-size:44px; color:var(--text-faint);
+}
+.live-thumb-badge{
+  position:absolute; top:8px; display:inline-flex; align-items:center; gap:5px;
+  font-size:11px; font-weight:700; border-radius:999px; padding:4px 9px;
+  backdrop-filter:blur(4px);
+}
+.live-thumb-live{ left:8px; background:rgba(255,93,115,.92); color:#fff; }
+.live-thumb-live .live-dot{ background:#fff; width:6px; height:6px; }
+.live-thumb-viewer{ right:8px; background:rgba(0,0,0,.62); color:#fff; font-family:var(--font-mono); font-weight:400; }
+.live-member-body{ padding:12px 14px 14px; }
+.live-member-row{ display:flex; align-items:center; gap:10px; }
+.live-member-avatar-sm{
+  flex-shrink:0; width:32px; height:32px; border-radius:50%; overflow:hidden;
   background:var(--bg-panel-2); display:flex; align-items:center; justify-content:center;
-  font-family:var(--font-display); font-size:17px; color:var(--text-dim); overflow:hidden;
+  font-family:var(--font-display); font-size:13px; color:var(--text-dim);
+}
+.live-member-avatar-sm img{ width:100%; height:100%; object-fit:cover; display:block; }
+.live-member-namewrap{ min-width:0; flex:1; }
+.live-member-namewrap .live-member-name{ font-size:14.5px; }
+.live-member-id{ font-size:11px; color:var(--text-faint); font-family:var(--font-mono); }
+.live-member-group-tag{
+  flex-shrink:0; font-size:10.5px; color:var(--accent-teal); background:var(--accent-teal-dim);
+  border-radius:999px; padding:3px 9px;
+}
+.live-member-broadtitle{
+  margin-top:9px; font-size:12px; color:var(--text-dim);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* -- 방송 안함 카드: 작은 리스트형 -- */
+.live-offline-list{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+  gap:10px; margin-top:10px;
+}
+.live-member-card.is-offline{
+  display:flex; align-items:center; gap:12px; padding:12px; opacity:.72;
+}
+.live-member-card.is-offline:hover{ opacity:1; border-color:var(--accent-teal); transform:translateY(-2px); }
+.live-member-avatar{
+  position:relative; flex-shrink:0; width:40px; height:40px; border-radius:50%;
+  background:var(--bg-panel-2); display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-size:15px; color:var(--text-dim); overflow:hidden;
 }
 .live-member-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
-.is-live .live-member-avatar{ box-shadow:0 0 0 2px var(--accent-rose); }
-.live-member-dot{
-  position:absolute; right:-1px; bottom:-1px; width:11px; height:11px; border-radius:50%;
-  background:var(--accent-rose); border:2px solid var(--bg-panel);
-  animation:live-pulse 1.4s ease-in-out infinite;
-}
 .live-member-info{ min-width:0; flex:1; }
 .live-member-name{ font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.live-member-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.is-live .live-member-sub{ color:var(--accent-rose); font-family:var(--font-body); }
+.live-member-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 .live-offline-toggle{
   width:100%; margin-top:12px; display:flex; align-items:center; justify-content:center; gap:6px;
@@ -336,10 +382,6 @@ body{
 }
 .live-offline-toggle:hover{ color:var(--accent-teal); border-color:var(--accent-teal); }
 .live-offline-caret{ font-size:10px; }
-.live-offline-list{
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
-  gap:10px; margin-top:10px;
-}
 
 .board-shortcut-grid{
   display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));

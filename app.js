@@ -1289,17 +1289,39 @@ function renderLiveRoster() {
 function liveMemberCardHtml(m, isLive) {
   const info = liveMemberInfo[m.bjId] || {};
   const initial = (m.name || "?").slice(0, 1);
+  const imgUrl = info.profileImg ? (info.profileImg.startsWith("http") ? info.profileImg : "https:" + info.profileImg) : null;
+
+  if (isLive) {
+    return `
+      <div class="live-member-card is-live" data-bjid="${escapeHtml(m.bjId)}">
+        <div class="live-member-thumb">
+          ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="">` : `<span class="live-member-thumb-initial">${escapeHtml(initial)}</span>`}
+          <span class="live-thumb-badge live-thumb-live"><span class="live-dot"></span> LIVE</span>
+          ${info.viewerCount != null ? `<span class="live-thumb-badge live-thumb-viewer">👁 ${info.viewerCount.toLocaleString()}</span>` : ""}
+        </div>
+        <div class="live-member-body">
+          <div class="live-member-row">
+            <div class="live-member-avatar-sm">${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="">` : `<span>${escapeHtml(initial)}</span>`}</div>
+            <div class="live-member-namewrap">
+              <div class="live-member-name">${escapeHtml(m.name)}</div>
+              <div class="live-member-id">@${escapeHtml(m.bjId)}</div>
+            </div>
+            ${m.groupName ? `<span class="live-member-group-tag">${escapeHtml(m.groupName)}</span>` : ""}
+          </div>
+          ${info.title ? `<div class="live-member-broadtitle">${escapeHtml(info.title)}</div>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
   return `
-    <div class="live-member-card ${isLive ? "is-live" : "is-offline"}" data-bjid="${escapeHtml(m.bjId)}">
+    <div class="live-member-card is-offline" data-bjid="${escapeHtml(m.bjId)}">
       <div class="live-member-avatar">
-        ${info.profileImg ? `<img src="${escapeHtml(info.profileImg.startsWith("http") ? info.profileImg : "https:" + info.profileImg)}" alt="">` : `<span>${escapeHtml(initial)}</span>`}
-        ${isLive ? `<span class="live-member-dot"></span>` : ""}
+        ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="">` : `<span>${escapeHtml(initial)}</span>`}
       </div>
       <div class="live-member-info">
         <div class="live-member-name">${escapeHtml(m.name)}</div>
-        <div class="live-member-sub">${isLive
-          ? (info.viewerCount != null ? `👁 ${info.viewerCount.toLocaleString()}` : "🔴 방송 중")
-          : (m.groupName ? escapeHtml(m.groupName) : "방송 안함")}</div>
+        <div class="live-member-sub">${m.groupName ? escapeHtml(m.groupName) : "방송 안함"}</div>
       </div>
     </div>
   `;
@@ -1573,13 +1595,13 @@ function showHovercellView() {
 function showHomeDashboard() {
   el("homeDashboard").classList.remove("hidden");
   el("listContentHeader").classList.add("hidden");
-  renderBoardShortcuts();
-  loadRecentPosts();
+  el("layoutEl").classList.add("no-sidebar");
   renderLiveRoster();
 }
 function hideHomeDashboard() {
   el("homeDashboard").classList.add("hidden");
   el("listContentHeader").classList.remove("hidden");
+  el("layoutEl").classList.remove("no-sidebar");
 }
 
 el("homeBtn").addEventListener("click", () => {
