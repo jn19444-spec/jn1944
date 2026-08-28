@@ -565,7 +565,7 @@ const ADMIN_TAB_LOADERS = {
   music: loadMusicAdminTab,
   stats: loadStats,
   site: fillSiteSettingsForm,
-  live: fillLiveSettingsForm,
+  live: () => { fillLiveSettingsForm(); loadLiveRosterAdminTab(); },
 };
 
 function activateAdminTab(tabName) {
@@ -1152,6 +1152,243 @@ function renderLiveDisplay(isLive, title) {
   }
 }
 
+// ---------- 라이브 로스터 (메인화면 LIVE 목록 — 여러 명의 방송인) ----------
+// liveMembers 컬렉션의 각 문서: name(이름), bjId(SOOP 아이디), groupName(그룹, 선택), order
+let liveMembers = [];
+let liveMemberInfo = {}; // bjId -> { isLive, title, viewerCount, profileImg }
+let liveRosterGroupFilter = "전체";
+let liveOfflineOpen = false;
+let liveRosterTimer = null;
+
+async function loadLiveMembers() {
+  try {
+    const q = query(collection(db, "liveMembers"), orderBy("order", "asc"));
+    const snap = await getDocs(q);
+    liveMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    liveMembers = [];
+  }
+  await refreshLiveRosterStatuses();
+  if (!el("homeDashboard").classList.contains("hidden")) renderLiveRoster();
+
+  if (liveRosterTimer) clearInterval(liveRosterTimer);
+  if (liveMembers.length) {
+    liveRosterTimer = setInterval(async () => {
+      await refreshLiveRosterStatuses();
+      if (!el("homeDashboard").classList.contains("hidden")) renderLiveRoster();
+    }, 3 * 60 * 1000);
+  }
+}
+
+function nextLiveMemberOrder() {
+  if (liveMembers.length === 0) return Date.now();
+  return Math.max(...liveMembers.map(m => m.order || 0)) + 10;
+}
+
+// SOOP 비공식 API에서 방송 여부/제목/시청자수/프로필 사진까지 최대한 읽어봐요.
+// 응답 구조가 언제든 바뀔 수 있어서 여러 위치를 다 확인하고, 실패하면 조용히 오프라인 취급해요.
+async function checkMemberLiveInfo(bjId) {
+  try {
+    const res = await fetch(`https://bjapi.afreecatv.com/api/${encodeURIComponent(bjId)}/station`);
+    if (!res.ok) return { isLive: false };
+    const data = await res.json();
+    const broad = data?.broad || data?.station?.broad || data?.BROAD || null;
+    const broadNo = broad?.broad_no || broad?.broadNo || data?.broad_no;
+    const viewerCount = broad?.current_sum_viewer ?? broad?.total_view_cnt ?? broad?.view_cnt ?? null;
+    const profileImg = data?.station?.user_pic || data?.profile_image || data?.station?.upimg || null;
+    return {
+      isLive: !!broadNo,
+      title: broad?.broad_title || broad?.title || "",
+      viewerCount: typeof viewerCount === "number" ? viewerCount : null,
+      profileImg: profileImg || null,
+    };
+  } catch (e) {
+    return { isLive: false }; // CORS 등으로 실패하면 방송 안 하는 걸로 처리
+  }
+}
+
+async function refreshLiveRosterStatuses() {
+  const results = await Promise.all(
+    liveMembers.filter(m => m.bjId).map(async m => [m.bjId, await checkMemberLiveInfo(m.bjId)])
+  );
+  liveMemberInfo = Object.fromEntries(results);
+}
+
+function liveMemberGroups() {
+  const set = new Set();
+  liveMembers.forEach(m => { if (m.groupName) set.add(m.groupName); });
+  return [...set];
+}
+
+function renderLiveRoster() {
+  const section = el("liveRosterSection");
+  if (!liveMembers.length) { section.classList.add("hidden"); return; }
+  section.classList.remove("hidden");
+
+  const groups = liveMemberGroups();
+  const tabsEl = el("liveGroupTabs");
+  if (groups.length > 1) {
+    tabsEl.classList.remove("hidden");
+    tabsEl.innerHTML = ["전체", ...groups].map(g =>
+      `<button class="live-group-tab ${liveRosterGroupFilter === g ? "active" : ""}" data-group="${escapeHtml(g)}">${escapeHtml(g)}</button>`
+    ).join("");
+    tabsEl.querySelectorAll(".live-group-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        liveRosterGroupFilter = btn.dataset.group;
+        renderLiveRoster();
+      });
+    });
+  } else {
+    tabsEl.classList.add("hidden");
+    liveRosterGroupFilter = "전체";
+  }
+
+  const visible = liveMembers.filter(m => liveRosterGroupFilter === "전체" || m.groupName === liveRosterGroupFilter);
+  const liveList = visible.filter(m => liveMemberInfo[m.bjId]?.isLive);
+  const offlineList = visible.filter(m => !liveMemberInfo[m.bjId]?.isLive);
+
+  const countBadge = el("liveCountBadge");
+  if (liveList.length) {
+    countBadge.classList.remove("hidden");
+    countBadge.innerHTML = `<span class="live-dot"></span> 지금 ${liveList.length}명 방송 중`;
+  } else {
+    countBadge.classList.add("hidden");
+  }
+
+  const gridEl = el("liveRosterGrid");
+  const emptyEl = el("liveRosterEmpty");
+  if (!liveList.length) {
+    gridEl.innerHTML = "";
+    emptyEl.classList.remove("hidden");
+    emptyEl.querySelector("p").textContent = "지금은 방송 중인 사람이 없어요.";
+  } else {
+    emptyEl.classList.add("hidden");
+    gridEl.innerHTML = liveList.map(m => liveMemberCardHtml(m, true)).join("");
+    gridEl.querySelectorAll(".live-member-card").forEach(card => {
+      card.addEventListener("click", () => window.open(`https://www.sooplive.com/${encodeURIComponent(card.dataset.bjid)}`, "_blank", "noopener"));
+    });
+  }
+
+  const offBtn = el("liveOfflineToggleBtn");
+  const offList = el("liveOfflineList");
+  if (!offlineList.length) {
+    offBtn.classList.add("hidden");
+    offList.classList.add("hidden");
+  } else {
+    offBtn.classList.remove("hidden");
+    el("liveOfflineToggleLabel").textContent = `방송 안함 ${offlineList.length}명`;
+    offBtn.querySelector(".live-offline-caret").textContent = liveOfflineOpen ? "▴" : "▾";
+    offList.classList.toggle("hidden", !liveOfflineOpen);
+    offList.innerHTML = offlineList.map(m => liveMemberCardHtml(m, false)).join("");
+    offList.querySelectorAll(".live-member-card").forEach(card => {
+      card.addEventListener("click", () => window.open(`https://www.sooplive.com/${encodeURIComponent(card.dataset.bjid)}`, "_blank", "noopener"));
+    });
+  }
+}
+
+function liveMemberCardHtml(m, isLive) {
+  const info = liveMemberInfo[m.bjId] || {};
+  const initial = (m.name || "?").slice(0, 1);
+  return `
+    <div class="live-member-card ${isLive ? "is-live" : "is-offline"}" data-bjid="${escapeHtml(m.bjId)}">
+      <div class="live-member-avatar">
+        ${info.profileImg ? `<img src="${escapeHtml(info.profileImg.startsWith("http") ? info.profileImg : "https:" + info.profileImg)}" alt="">` : `<span>${escapeHtml(initial)}</span>`}
+        ${isLive ? `<span class="live-member-dot"></span>` : ""}
+      </div>
+      <div class="live-member-info">
+        <div class="live-member-name">${escapeHtml(m.name)}</div>
+        <div class="live-member-sub">${isLive
+          ? (info.viewerCount != null ? `👁 ${info.viewerCount.toLocaleString()}` : "🔴 방송 중")
+          : (m.groupName ? escapeHtml(m.groupName) : "방송 안함")}</div>
+      </div>
+    </div>
+  `;
+}
+
+el("liveOfflineToggleBtn").addEventListener("click", () => {
+  liveOfflineOpen = !liveOfflineOpen;
+  renderLiveRoster();
+});
+
+// ---------- 라이브 로스터 관리자 탭 ----------
+async function loadLiveRosterAdminTab() {
+  await loadLiveMembers();
+  renderLiveMemberAdminList();
+}
+
+function renderLiveMemberAdminList() {
+  const listEl = el("liveMemberList");
+  const emptyEl = el("liveMemberEmpty");
+  listEl.innerHTML = "";
+  if (!liveMembers.length) {
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+  emptyEl.classList.add("hidden");
+  liveMembers.forEach((m, idx) => {
+    const row = document.createElement("div");
+    row.className = "manage-row";
+    const info = liveMemberInfo[m.bjId] || {};
+    row.innerHTML = `
+      <span class="manage-row-label">
+        ${info.isLive ? `<span class="live-dot"></span>` : "⚪"}
+        ${escapeHtml(m.name)} <span class="hint-text" style="margin:0;">(@${escapeHtml(m.bjId)}${m.groupName ? " · " + escapeHtml(m.groupName) : ""})</span>
+      </span>
+      <span class="manage-row-actions">
+        <button data-act="up" ${idx === 0 ? "disabled" : ""}>▲</button>
+        <button data-act="down" ${idx === liveMembers.length - 1 ? "disabled" : ""}>▼</button>
+        <button data-act="edit">수정</button>
+        <button data-act="del" class="danger">삭제</button>
+      </span>
+    `;
+    row.querySelector('[data-act="up"]').addEventListener("click", () => moveLiveMember(idx, -1));
+    row.querySelector('[data-act="down"]').addEventListener("click", () => moveLiveMember(idx, 1));
+    row.querySelector('[data-act="edit"]').addEventListener("click", () => editLiveMember(m));
+    row.querySelector('[data-act="del"]').addEventListener("click", () => deleteLiveMember(m));
+    listEl.appendChild(row);
+  });
+}
+
+el("liveMemberAddBtn").addEventListener("click", async () => {
+  const name = el("liveMemberNameInput").value.trim();
+  const bjId = el("liveMemberBjIdInput").value.trim();
+  const groupName = el("liveMemberGroupInput").value.trim();
+  if (!name || !bjId) { alert("이름과 SOOP 아이디는 꼭 입력해주세요."); return; }
+  await addDoc(collection(db, "liveMembers"), { name, bjId, groupName, order: nextLiveMemberOrder() });
+  el("liveMemberNameInput").value = "";
+  el("liveMemberBjIdInput").value = "";
+  el("liveMemberGroupInput").value = "";
+  await loadLiveRosterAdminTab();
+});
+
+async function editLiveMember(m) {
+  const name = prompt("이름을 입력해주세요", m.name);
+  if (name === null) return;
+  const bjId = prompt("SOOP 아이디를 입력해주세요", m.bjId);
+  if (bjId === null) return;
+  const groupName = prompt("그룹명을 입력해주세요 (없으면 비워두세요)", m.groupName || "");
+  if (groupName === null) return;
+  await updateDoc(doc(db, "liveMembers", m.id), { name: name.trim(), bjId: bjId.trim(), groupName: groupName.trim() });
+  await loadLiveRosterAdminTab();
+}
+
+async function deleteLiveMember(m) {
+  if (!confirm(`"${m.name}"을(를) 로스터에서 삭제할까요?`)) return;
+  await deleteDoc(doc(db, "liveMembers", m.id));
+  await loadLiveRosterAdminTab();
+}
+
+async function moveLiveMember(idx, dir) {
+  const otherIdx = idx + dir;
+  if (otherIdx < 0 || otherIdx >= liveMembers.length) return;
+  const a = liveMembers[idx], b = liveMembers[otherIdx];
+  await Promise.all([
+    updateDoc(doc(db, "liveMembers", a.id), { order: b.order }),
+    updateDoc(doc(db, "liveMembers", b.id), { order: a.order }),
+  ]);
+  await loadLiveRosterAdminTab();
+}
+
 function fillLiveSettingsForm() {
   el("liveManualToggle").checked = liveConfig.manualOn;
   el("liveAutoDetectToggle").checked = liveConfig.autoDetect;
@@ -1338,6 +1575,7 @@ function showHomeDashboard() {
   el("listContentHeader").classList.add("hidden");
   renderBoardShortcuts();
   loadRecentPosts();
+  renderLiveRoster();
 }
 function hideHomeDashboard() {
   el("homeDashboard").classList.add("hidden");
@@ -4180,6 +4418,7 @@ loadTopMenu();
 loadMemberTiers().then(() => { if (boardRows.length) renderBoardTree(); updateHovercellButtonVisibility(); });
 initMusicPlayer();
 loadLiveConfig();
+loadLiveMembers();
 
 // ---------- PWA: 서비스워커 등록 ----------
 if ("serviceWorker" in navigator) {

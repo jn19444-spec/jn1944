@@ -83,6 +83,19 @@
     <section id="listView">
       <!-- 메인화면 대시보드 (게시판 미선택 시에만 보임) -->
       <div id="homeDashboard" class="home-dashboard hidden">
+        <section class="home-section live-section" id="liveRosterSection">
+          <div class="live-section-header">
+            <h3 class="home-section-title live-section-title">🔴 LIVE <span id="liveCountBadge" class="live-count-badge hidden"></span></h3>
+          </div>
+          <div id="liveGroupTabs" class="live-group-tabs hidden"></div>
+          <div id="liveRosterGrid" class="live-roster-grid"></div>
+          <div id="liveRosterEmpty" class="empty-state hidden"><p>등록된 방송인이 없어요.</p></div>
+          <button id="liveOfflineToggleBtn" class="live-offline-toggle hidden">
+            <span id="liveOfflineToggleLabel">방송 안함 0명</span>
+            <span class="live-offline-caret">▾</span>
+          </button>
+          <div id="liveOfflineList" class="live-offline-list hidden"></div>
+        </section>
         <section class="home-section">
           <h3 class="home-section-title">📋 게시판 바로가기</h3>
           <div id="boardShortcuts" class="board-shortcut-grid"></div>
@@ -312,6 +325,20 @@
 
       <!-- 생방송 설정 -->
       <div id="adminTabLive" class="admin-panel hidden">
+        <h3 class="admin-subtitle" style="margin-top:0;">📺 라이브 로스터 (메인화면 LIVE 목록)</h3>
+        <p class="hint-text">메인화면 맨 위에 여러 명의 방송인을 등록해두면, SOOP 아이디로 지금 방송 중인지 자동으로 확인해서 "방송 중 / 방송 안함"으로 나눠 보여줘요.</p>
+        <div class="manage-add-row">
+          <input type="text" id="liveMemberNameInput" placeholder="이름 (예: 연또)">
+          <input type="text" id="liveMemberBjIdInput" placeholder="SOOP 아이디 (예: kjy3443)">
+          <input type="text" id="liveMemberGroupInput" placeholder="그룹명 (선택, 예: 케이대)">
+          <button id="liveMemberAddBtn" class="btn btn-primary" style="align-self:flex-start;">+ 로스터에 추가</button>
+        </div>
+        <div id="liveMemberList" class="manage-list"></div>
+        <p id="liveMemberEmpty" class="hint-text hidden">아직 등록된 방송인이 없어요. 위에서 추가해주세요.</p>
+
+        <div class="manage-header" style="margin-top:22px; border-top:1px solid var(--line); padding-top:16px;">
+          <h3 style="font-size:14px; margin:0;">🔴 내 방송 배너 (상단/사이드바에 따로 표시)</h3>
+        </div>
         <p class="hint-text">방송 시작하면 켜고, 끝나면 꺼주세요. "자동 감지"를 켜두면 SOOP에서 방송 중인지 자동으로 확인을 시도하는데, SOOP 쪽 사정으로 안 될 수도 있어요 — 그럴 땐 수동 켜기/끄기가 항상 확실하게 동작해요.</p>
         <div class="site-settings-form">
           <label class="settings-label">

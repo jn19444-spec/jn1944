@@ -275,6 +275,72 @@ body{
   color:var(--text-dim); letter-spacing:.3px;
   margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid var(--line);
 }
+/* ---------- 메인화면: 라이브 로스터 ---------- */
+.live-section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.live-section-title{ display:flex; align-items:center; gap:10px; margin:0; padding:0; border:none; }
+.live-count-badge{
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(255,93,115,.14); color:var(--accent-rose);
+  font-family:var(--font-body); font-size:12px; font-weight:700;
+  border-radius:999px; padding:4px 12px 4px 10px;
+}
+.live-count-badge .live-dot{ background:var(--accent-rose); }
+
+.live-group-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.live-group-tab{
+  background:transparent; border:1px solid var(--line-soft); color:var(--text-dim);
+  border-radius:999px; padding:6px 14px; font-size:12.5px; cursor:pointer;
+  font-family:var(--font-body); transition:all .15s ease;
+}
+.live-group-tab:hover{ color:var(--accent-teal); border-color:var(--accent-teal); }
+.live-group-tab.active{
+  background:var(--accent-teal); border-color:var(--accent-teal); color:#04211e; font-weight:700;
+}
+
+.live-roster-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+  gap:10px;
+}
+.live-member-card{
+  display:flex; align-items:center; gap:12px;
+  background:var(--bg-panel); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-card);
+  padding:12px; cursor:pointer;
+  transition:border-color .15s ease, transform .12s ease;
+}
+.live-member-card.is-live:hover{ border-color:var(--accent-rose); transform:translateY(-2px); }
+.live-member-card.is-offline{ opacity:.7; }
+.live-member-card.is-offline:hover{ opacity:1; border-color:var(--accent-teal); }
+.live-member-avatar{
+  position:relative; flex-shrink:0; width:44px; height:44px; border-radius:50%;
+  background:var(--bg-panel-2); display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-size:17px; color:var(--text-dim); overflow:hidden;
+}
+.live-member-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+.is-live .live-member-avatar{ box-shadow:0 0 0 2px var(--accent-rose); }
+.live-member-dot{
+  position:absolute; right:-1px; bottom:-1px; width:11px; height:11px; border-radius:50%;
+  background:var(--accent-rose); border:2px solid var(--bg-panel);
+  animation:live-pulse 1.4s ease-in-out infinite;
+}
+.live-member-info{ min-width:0; flex:1; }
+.live-member-name{ font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.live-member-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.is-live .live-member-sub{ color:var(--accent-rose); font-family:var(--font-body); }
+
+.live-offline-toggle{
+  width:100%; margin-top:12px; display:flex; align-items:center; justify-content:center; gap:6px;
+  background:transparent; border:1px dashed var(--line-soft); color:var(--text-dim);
+  border-radius:var(--radius-sm); padding:9px; font-size:12.5px; cursor:pointer;
+  font-family:var(--font-body); transition:all .15s ease;
+}
+.live-offline-toggle:hover{ color:var(--accent-teal); border-color:var(--accent-teal); }
+.live-offline-caret{ font-size:10px; }
+.live-offline-list{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+  gap:10px; margin-top:10px;
+}
+
 .board-shortcut-grid{
   display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));
   gap:10px;
