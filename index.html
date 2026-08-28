@@ -33,6 +33,7 @@
         <button id="noticeMenuBtn" class="btn btn-ghost">📢 공지함</button>
         <div id="noticeDropdown" class="notice-dropdown hidden"></div>
       </div>
+      <button id="boardMenuBtn" class="btn btn-ghost">📋 게시판 목록</button>
       <span id="whoami" class="whoami"></span>
       <button id="hovercellTopBtn" class="btn btn-ghost hidden">🖼 호버셀 제작</button>
       <button id="nicknameBtn" class="btn btn-ghost hidden">✏ 닉네임</button>
@@ -53,6 +54,9 @@
 </a>
 
 <div class="layout" id="layoutEl">
+
+  <!-- 사이드바(게시판 목록)를 덮개로 열었을 때 뒤를 어둡게 깔아주는 배경 -->
+  <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
 
   <!-- 좌측 사이드바 -->
   <aside class="sidebar" id="sidebarEl">

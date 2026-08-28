@@ -1596,13 +1596,24 @@ function showHomeDashboard() {
   el("homeDashboard").classList.remove("hidden");
   el("listContentHeader").classList.add("hidden");
   el("layoutEl").classList.add("no-sidebar");
+  el("boardMenuBtn").classList.remove("hidden");
   renderLiveRoster();
 }
 function hideHomeDashboard() {
   el("homeDashboard").classList.add("hidden");
   el("listContentHeader").classList.remove("hidden");
   el("layoutEl").classList.remove("no-sidebar");
+  el("layoutEl").classList.remove("sidebar-open");
+  el("boardMenuBtn").classList.add("hidden");
 }
+
+// 메인화면(깔끔 모드)에서 상단 "📋 게시판 목록" 버튼을 누르면 왼쪽 사이드바가 덮개로 열려요.
+el("boardMenuBtn").addEventListener("click", () => {
+  el("layoutEl").classList.toggle("sidebar-open");
+});
+el("sidebarBackdrop").addEventListener("click", () => {
+  el("layoutEl").classList.remove("sidebar-open");
+});
 
 el("homeBtn").addEventListener("click", () => {
   currentBoardId = null;
