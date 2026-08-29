@@ -34,9 +34,14 @@
         <div id="boardMenuDropdown" class="notice-dropdown board-menu-dropdown hidden"></div>
       </div>
       <span id="whoami" class="whoami"></span>
-      <button id="hovercellTopBtn" class="btn btn-ghost hidden">🖼 호버셀 제작</button>
-      <button id="nicknameBtn" class="btn btn-ghost hidden">✏ 닉네임</button>
-      <button id="adminMenuBtn" class="btn btn-ghost hidden">🛠 관리자 메뉴 <span id="adminMenuPendingBadge" class="pending-badge hidden"></span></button>
+      <div class="notice-menu-wrap" id="toolsMenuWrap">
+        <button id="toolsMenuBtn" class="btn btn-ghost tools-menu-btn hidden">⚙ 메뉴 <span id="adminMenuPendingBadge" class="pending-badge hidden"></span></button>
+        <div id="toolsMenuDropdown" class="tools-menu-dropdown">
+          <button id="adminMenuBtn" class="tools-menu-item hidden">🛠 관리자 메뉴</button>
+          <button id="hovercellTopBtn" class="tools-menu-item hidden">🖼 호버셀 제작</button>
+          <button id="nicknameBtn" class="tools-menu-item hidden">✏ 닉네임 설정</button>
+        </div>
+      </div>
       <button id="signupBtn" class="btn btn-ghost">회원가입</button>
       <button id="loginBtn" class="btn btn-ghost">로그인</button>
       <button id="logoutBtn" class="btn btn-ghost hidden">로그아웃</button>
@@ -83,18 +88,13 @@
     <section id="listView">
       <!-- 메인화면 대시보드 (게시판 미선택 시에만 보임) -->
       <div id="homeDashboard" class="home-dashboard hidden">
-        <section class="home-section live-section" id="liveRosterSection">
-          <div class="live-section-header">
-            <h3 class="home-section-title live-section-title">🔴 LIVE <span id="liveCountBadge" class="live-count-badge hidden"></span></h3>
+        <section class="home-section live-summary-section hidden" id="liveSummarySection">
+          <div class="live-summary-header">
+            <h3 class="home-section-title live-section-title">🔴 LIVE <span id="liveSummaryCountBadge" class="live-count-badge hidden"></span></h3>
+            <button id="liveSummaryViewAllBtn" class="live-summary-viewall">전체보기 →</button>
           </div>
-          <div id="liveGroupTabs" class="live-group-tabs hidden"></div>
-          <div id="liveRosterGrid" class="live-roster-grid"></div>
-          <div id="liveRosterEmpty" class="empty-state hidden"><p>등록된 방송인이 없어요.</p></div>
-          <button id="liveOfflineToggleBtn" class="live-offline-toggle hidden">
-            <span id="liveOfflineToggleLabel">방송 안함 0명</span>
-            <span class="live-offline-caret">▾</span>
-          </button>
-          <div id="liveOfflineList" class="live-offline-list hidden"></div>
+          <div id="liveSummaryGrid" class="live-summary-grid"></div>
+          <p id="liveSummaryEmptyText" class="live-summary-empty-text hidden">지금은 방송 중인 사람이 없어요.</p>
         </section>
       </div>
 
@@ -426,6 +426,24 @@
       <div class="hovercell-frame-wrap">
         <iframe id="hovercellFrame" class="hovercell-frame" title="호버셀 제작 툴"></iframe>
       </div>
+    </section>
+
+    <!-- LIVE 전체보기 (여러 명의 방송인을 그룹별로 크게 보기) -->
+    <section id="liveView" class="hidden">
+      <button id="liveBackBtn" class="btn btn-ghost back-btn">← 목록으로</button>
+      <section class="home-section live-section" id="liveRosterSection">
+        <div class="live-section-header">
+          <h3 class="home-section-title live-section-title">🔴 LIVE <span id="liveCountBadge" class="live-count-badge hidden"></span></h3>
+        </div>
+        <div id="liveGroupTabs" class="live-group-tabs hidden"></div>
+        <div id="liveRosterGrid" class="live-roster-grid"></div>
+        <div id="liveRosterEmpty" class="empty-state hidden"><p>등록된 방송인이 없어요.</p></div>
+        <button id="liveOfflineToggleBtn" class="live-offline-toggle hidden">
+          <span id="liveOfflineToggleLabel">방송 안함 0명</span>
+          <span class="live-offline-caret">▾</span>
+        </button>
+        <div id="liveOfflineList" class="live-offline-list hidden"></div>
+      </section>
     </section>
 
   </main>

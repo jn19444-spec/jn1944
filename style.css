@@ -145,6 +145,30 @@ body{
 .board-menu-dropdown .board-item{ border-radius:8px; }
 .board-menu-dropdown .board-group-title{ padding:10px 10px 4px; }
 
+/* ---------- 상단 "⚙ 메뉴"(관리자메뉴/호버셀제작/닉네임) 드롭다운 ---------- */
+.tools-menu-btn{ position:relative; }
+.tools-menu-btn .pending-badge{ margin-left:4px; }
+.tools-menu-dropdown{
+  display:none;
+  position:absolute; top:calc(100% + 10px); right:0;
+  width:200px; padding:6px; flex-direction:column; gap:2px;
+  background:var(--bg-panel-3); border:1px solid var(--line-soft); border-radius:var(--radius);
+  box-shadow:var(--shadow-pop);
+  z-index:30;
+}
+.tools-menu-dropdown.open{ display:flex; animation:noticeDropIn .18s ease; }
+.tools-menu-item{
+  display:block; width:100%; text-align:left;
+  background:none; border:none; color:var(--text-main);
+  padding:10px 12px; border-radius:8px;
+  font-family:var(--font-body); font-size:14px; cursor:pointer;
+}
+.tools-menu-item:hover{ background:var(--bg-panel-2); color:var(--accent-teal); }
+.tools-menu-item.hidden{ display:none; }
+@media (hover:hover){
+  .notice-menu-wrap:has(.tools-menu-btn:not(.hidden)):hover .tools-menu-dropdown{ display:flex; }
+}
+
 /* ---------- buttons ---------- */
 .btn{
   border-radius:999px;
@@ -288,7 +312,38 @@ body{
   color:var(--text-dim); letter-spacing:.3px;
   margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid var(--line);
 }
-/* ---------- 메인화면: 라이브 로스터 ---------- */
+/* ---------- 메인화면: LIVE 요약칸(작게) — "전체보기"를 누르면 LIVE 전체보기 화면으로 이동 ---------- */
+.live-summary-section{ margin-bottom:0; }
+.live-summary-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; }
+.live-summary-viewall{
+  flex-shrink:0; background:transparent; border:1px solid var(--line-soft); color:var(--text-dim);
+  border-radius:999px; padding:6px 14px; font-size:12.5px; cursor:pointer;
+  font-family:var(--font-body); transition:all .15s ease;
+}
+.live-summary-viewall:hover{ color:var(--accent-teal); border-color:var(--accent-teal); }
+.live-summary-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));
+  gap:12px;
+}
+.live-summary-card{
+  background:var(--bg-panel); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-card); overflow:hidden; cursor:pointer;
+  transition:border-color .15s ease, transform .12s ease, box-shadow .12s ease;
+}
+.live-summary-card:hover{ border-color:var(--accent-rose); transform:translateY(-3px); box-shadow:0 14px 28px -14px rgba(255,93,115,.4); }
+.live-summary-thumb{
+  position:relative; width:100%; aspect-ratio:16/10;
+  background:linear-gradient(135deg, var(--bg-panel-3), var(--bg-panel-2));
+  overflow:hidden;
+}
+.live-summary-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.live-summary-thumb .live-member-thumb-initial{ font-size:26px; }
+.live-summary-thumb .live-thumb-badge{ font-size:9.5px; padding:3px 7px; top:6px; }
+.live-summary-name{ padding:8px 10px 4px; font-size:12.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.live-summary-viewer{ padding:0 10px 9px; font-size:10.5px; color:var(--text-dim); font-family:var(--font-mono); }
+.live-summary-empty-text{ font-size:13px; color:var(--text-dim); margin:0; }
+
+/* ---------- LIVE 전체보기 화면 ---------- */
 .live-section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
 .live-section-title{ display:flex; align-items:center; gap:10px; margin:0; padding:0; border:none; }
 .live-count-badge{

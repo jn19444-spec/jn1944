@@ -130,6 +130,13 @@ function canAccessHovercell() {
 }
 function updateHovercellButtonVisibility() {
   el("hovercellTopBtn").classList.toggle("hidden", !canAccessHovercell());
+  updateToolsMenuButtonVisibility();
+}
+// 상단 "⚙ 메뉴"(관리자메뉴/호버셀제작/닉네임) 버튼: 안의 항목이 하나라도 보이면 표시
+function updateToolsMenuButtonVisibility() {
+  const anyVisible = ["adminMenuBtn", "hovercellTopBtn", "nicknameBtn"]
+    .some(id => !el(id).classList.contains("hidden"));
+  el("toolsMenuBtn").classList.toggle("hidden", !anyVisible);
 }
 function tierName(tierId) {
   if (!tierId) return "기본 등급";
@@ -252,6 +259,13 @@ async function routeFromLocation() {
 
   if (path === "/gallery") {
     selectGallery({ skipUrl: true });
+    return;
+  }
+
+  if (path === "/live") {
+    showListView();
+    showHomeDashboard();
+    showLiveView();
     return;
   }
 
@@ -553,6 +567,16 @@ el("hovercellBackBtn").addEventListener("click", () => {
   else if (currentBoardId === "__search__") { performSearch({ skipUrl: true }); pushUrl("/board", { q: el("searchInput").value.trim() }); }
   else if (currentBoardId) { loadPosts(currentBoardId); pushUrl("/board", { b: currentBoardId }); }
   else { showHomeDashboard(); pushUrl("/"); }
+});
+
+el("liveSummaryViewAllBtn").addEventListener("click", () => {
+  showLiveView();
+  pushUrl("/live");
+});
+el("liveBackBtn").addEventListener("click", () => {
+  showListView();
+  showHomeDashboard();
+  pushUrl("/");
 });
 
 // 탭 이름 → 그 탭이 열릴 때 새로 불러와야 할 데이터
@@ -1169,15 +1193,20 @@ async function loadLiveMembers() {
     liveMembers = [];
   }
   await refreshLiveRosterStatuses();
-  if (!el("homeDashboard").classList.contains("hidden")) renderLiveRoster();
+  renderLiveViews();
 
   if (liveRosterTimer) clearInterval(liveRosterTimer);
   if (liveMembers.length) {
     liveRosterTimer = setInterval(async () => {
       await refreshLiveRosterStatuses();
-      if (!el("homeDashboard").classList.contains("hidden")) renderLiveRoster();
+      renderLiveViews();
     }, 3 * 60 * 1000);
   }
+}
+// 지금 화면에 보이는 게(메인화면 요약칸 / LIVE 전체보기 화면) 어느 쪽인지에 맞게 갱신해요.
+function renderLiveViews() {
+  if (!el("homeDashboard").classList.contains("hidden")) renderLiveSummary();
+  if (!el("liveView").classList.contains("hidden")) renderLiveRoster();
 }
 
 function nextLiveMemberOrder() {
@@ -1323,6 +1352,52 @@ function liveMemberCardHtml(m, isLive) {
         <div class="live-member-name">${escapeHtml(m.name)}</div>
         <div class="live-member-sub">${m.groupName ? escapeHtml(m.groupName) : "방송 안함"}</div>
       </div>
+    </div>
+  `;
+}
+
+// ---------- 메인화면 LIVE 요약칸 (작게 몇 명만 보여주고, "전체보기"를 누르면 LIVE 전체보기 화면으로 이동) ----------
+function renderLiveSummary() {
+  const section = el("liveSummarySection");
+  if (!liveMembers.length) { section.classList.add("hidden"); return; }
+  section.classList.remove("hidden");
+
+  const liveList = liveMembers.filter(m => liveMemberInfo[m.bjId]?.isLive);
+
+  const countBadge = el("liveSummaryCountBadge");
+  if (liveList.length) {
+    countBadge.classList.remove("hidden");
+    countBadge.innerHTML = `<span class="live-dot"></span> 지금 ${liveList.length}명 방송 중`;
+  } else {
+    countBadge.classList.add("hidden");
+  }
+
+  const gridEl = el("liveSummaryGrid");
+  const emptyText = el("liveSummaryEmptyText");
+  if (!liveList.length) {
+    gridEl.innerHTML = "";
+    emptyText.classList.remove("hidden");
+  } else {
+    emptyText.classList.add("hidden");
+    gridEl.innerHTML = liveList.slice(0, 4).map(m => liveSummaryCardHtml(m)).join("");
+    gridEl.querySelectorAll(".live-summary-card").forEach(card => {
+      card.addEventListener("click", () => window.open(`https://www.sooplive.com/${encodeURIComponent(card.dataset.bjid)}`, "_blank", "noopener"));
+    });
+  }
+}
+
+function liveSummaryCardHtml(m) {
+  const info = liveMemberInfo[m.bjId] || {};
+  const initial = (m.name || "?").slice(0, 1);
+  const imgUrl = info.profileImg ? (info.profileImg.startsWith("http") ? info.profileImg : "https:" + info.profileImg) : null;
+  return `
+    <div class="live-summary-card" data-bjid="${escapeHtml(m.bjId)}">
+      <div class="live-summary-thumb">
+        ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="">` : `<span class="live-member-thumb-initial">${escapeHtml(initial)}</span>`}
+        <span class="live-thumb-badge live-thumb-live"><span class="live-dot"></span> LIVE</span>
+      </div>
+      <div class="live-summary-name">${escapeHtml(m.name)}</div>
+      ${info.viewerCount != null ? `<div class="live-summary-viewer">👁 ${info.viewerCount.toLocaleString()}</div>` : ""}
     </div>
   `;
 }
@@ -1539,62 +1614,54 @@ function selectGallery(opts = {}) {
 }
 
 // ---------- 뷰 전환 ----------
-function showListView() {
-  el("listView").classList.remove("hidden");
+// 화면 전환 시 공통으로 숨겨야 하는 "큰 화면" 섹션들 (목록/글쓰기/상세/갤러리/관리자/호버셀/LIVE전체보기)
+function hideAllMainSections() {
+  el("listView").classList.add("hidden");
   el("writeView").classList.add("hidden");
   el("detailView").classList.add("hidden");
   el("galleryView").classList.add("hidden");
   el("adminView").classList.add("hidden");
   el("hovercellView").classList.add("hidden");
+  el("liveView").classList.add("hidden");
+}
+function showListView() {
+  hideAllMainSections();
+  el("listView").classList.remove("hidden");
   const emptyP = el("emptyState").querySelector("p");
   if (emptyP) emptyP.textContent = "아직 게시글이 없어요.";
 }
 function showWriteView() {
-  el("listView").classList.add("hidden");
+  hideAllMainSections();
   el("writeView").classList.remove("hidden");
-  el("detailView").classList.add("hidden");
-  el("galleryView").classList.add("hidden");
-  el("adminView").classList.add("hidden");
-  el("hovercellView").classList.add("hidden");
   el("writeBoardLabel").textContent = currentBoard ? currentBoard.name : "";
   el("writeViewTitle").textContent = editingPostId ? "글 수정" : "글쓰기";
 }
 function showDetailView() {
-  el("listView").classList.add("hidden");
-  el("writeView").classList.add("hidden");
+  hideAllMainSections();
   el("detailView").classList.remove("hidden");
-  el("galleryView").classList.add("hidden");
-  el("adminView").classList.add("hidden");
-  el("hovercellView").classList.add("hidden");
 }
 function showGalleryView() {
-  el("listView").classList.add("hidden");
-  el("writeView").classList.add("hidden");
-  el("detailView").classList.add("hidden");
+  hideAllMainSections();
   el("galleryView").classList.remove("hidden");
-  el("adminView").classList.add("hidden");
-  el("hovercellView").classList.add("hidden");
 }
 function showAdminView() {
-  el("listView").classList.add("hidden");
-  el("writeView").classList.add("hidden");
-  el("detailView").classList.add("hidden");
-  el("galleryView").classList.add("hidden");
+  hideAllMainSections();
   el("adminView").classList.remove("hidden");
-  el("hovercellView").classList.add("hidden");
 }
 // 호버셀 제작 툴은 iframe이라 처음 열 때만 불러와요. 배포 위치가 도메인 루트든(Firebase/Vercel)
 // GitHub Pages 저장소 하위 경로든 상관없이 항상 올바른 위치를 가리키도록, 라우팅에서
 // 쓰는 것과 같은 BASE_PATH를 그대로 재사용해요.
 function showHovercellView() {
-  el("listView").classList.add("hidden");
-  el("writeView").classList.add("hidden");
-  el("detailView").classList.add("hidden");
-  el("galleryView").classList.add("hidden");
-  el("adminView").classList.add("hidden");
+  hideAllMainSections();
   el("hovercellView").classList.remove("hidden");
   const frame = el("hovercellFrame");
   if (!frame.src) frame.src = BASE_PATH + "/hovercell/index.html";
+}
+// LIVE 전체보기: 메인화면 요약칸의 "전체보기"를 눌렀을 때 여는 큰 화면
+function showLiveView() {
+  hideAllMainSections();
+  el("liveView").classList.remove("hidden");
+  renderLiveRoster();
 }
 
 function showHomeDashboard() {
@@ -1602,7 +1669,7 @@ function showHomeDashboard() {
   el("listContentHeader").classList.add("hidden");
   el("layoutEl").classList.add("no-sidebar");
   el("boardMenuBtn").classList.remove("hidden");
-  renderLiveRoster();
+  renderLiveSummary();
 }
 function hideHomeDashboard() {
   el("homeDashboard").classList.add("hidden");
@@ -1678,6 +1745,26 @@ el("boardMenuBtn").addEventListener("click", (e) => {
   wrap.classList.add("open");
   renderBoardMenuDropdown();
   document.addEventListener("click", onDocClickCloseBoardMenu);
+});
+
+// ---------- 상단 "⚙ 메뉴"(관리자메뉴/호버셀제작/닉네임) 드롭다운 열고닫기 ----------
+function closeToolsMenuDropdown() {
+  el("toolsMenuDropdown").classList.remove("open");
+  document.removeEventListener("click", onDocClickCloseToolsMenu);
+}
+function onDocClickCloseToolsMenu(e) {
+  if (!e.target.closest("#toolsMenuWrap")) closeToolsMenuDropdown();
+}
+el("toolsMenuBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const dropdown = el("toolsMenuDropdown");
+  if (dropdown.classList.contains("open")) { closeToolsMenuDropdown(); return; }
+  dropdown.classList.add("open");
+  document.addEventListener("click", onDocClickCloseToolsMenu);
+});
+// 항목을 누르면(관리자 메뉴/호버셀 제작/닉네임 설정) 드롭다운을 닫아줌
+["adminMenuBtn", "hovercellTopBtn", "nicknameBtn"].forEach(id => {
+  el(id).addEventListener("click", closeToolsMenuDropdown);
 });
 
 el("homeBtn").addEventListener("click", () => {
