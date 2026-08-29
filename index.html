@@ -29,6 +29,7 @@
       <button id="homeBtn" class="brand-name-btn">+구구+</button>
     </div>
     <div class="topbar-actions">
+      <button id="liveNavBtn" class="btn btn-ghost live-nav-btn">🔴 LIVE</button>
       <div class="notice-menu-wrap" id="boardMenuWrap">
         <button id="boardMenuBtn" class="btn btn-ghost">📋 게시판 목록</button>
         <div id="boardMenuDropdown" class="notice-dropdown board-menu-dropdown hidden"></div>
@@ -95,6 +96,15 @@
           </div>
           <div id="liveSummaryGrid" class="live-summary-grid"></div>
           <p id="liveSummaryEmptyText" class="live-summary-empty-text hidden">지금은 방송 중인 사람이 없어요.</p>
+        </section>
+
+        <section class="home-section recent-posts-section" id="recentPostsSection">
+          <div class="live-summary-header">
+            <h3 class="home-section-title">📝 최근 게시글</h3>
+            <button id="recentPostsViewAllBtn" class="live-summary-viewall">전체보기 →</button>
+          </div>
+          <div id="recentPostsList" class="recent-post-list"></div>
+          <p id="recentPostsEmptyText" class="live-summary-empty-text hidden">아직 게시글이 없어요.</p>
         </section>
       </div>
 

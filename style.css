@@ -343,6 +343,36 @@ body{
 .live-summary-viewer{ padding:0 10px 9px; font-size:10.5px; color:var(--text-dim); font-family:var(--font-mono); }
 .live-summary-empty-text{ font-size:13px; color:var(--text-dim); margin:0; }
 
+/* ---------- 메인화면: 최근 게시글 요약칸(onek 스타일 줄목록) ---------- */
+.recent-post-list{ display:flex; flex-direction:column; }
+.recent-post-row{
+  display:flex; align-items:center; gap:10px;
+  padding:11px 4px; border-bottom:1px solid var(--line);
+  cursor:pointer; font-size:13.5px;
+}
+.recent-post-row:last-child{ border-bottom:none; }
+.recent-post-row:hover .recent-post-title{ color:var(--accent-teal); }
+.recent-post-board{
+  flex-shrink:0; background:var(--bg-panel-2); color:var(--accent-teal);
+  border-radius:6px; padding:2px 8px; font-size:11px;
+}
+.recent-post-title{
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--text-main); transition:color .12s ease;
+}
+.recent-post-meta{
+  flex-shrink:0; font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono);
+}
+.pin-badge-sm{ flex-shrink:0; font-size:12px; }
+@media (max-width:640px){
+  .recent-post-meta{ display:none; }
+}
+
+/* ---------- 상단 "🔴 LIVE" 바로가기(항상 보임, LIVE 전체보기로 바로 이동) ---------- */
+.live-nav-btn{ color:var(--accent-rose); }
+.live-nav-btn:hover{ color:var(--accent-rose); border-color:var(--accent-rose); background:var(--bg-panel-2); }
+.topbar-actions .live-nav-btn{ border-color:transparent; }
+
 /* ---------- LIVE 전체보기 화면 ---------- */
 .live-section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
 .live-section-title{ display:flex; align-items:center; gap:10px; margin:0; padding:0; border:none; }

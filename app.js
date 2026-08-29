@@ -573,11 +573,18 @@ el("liveSummaryViewAllBtn").addEventListener("click", () => {
   showLiveView();
   pushUrl("/live");
 });
+el("liveNavBtn").addEventListener("click", () => {
+  showListView();
+  showHomeDashboard();
+  showLiveView();
+  pushUrl("/live");
+});
 el("liveBackBtn").addEventListener("click", () => {
   showListView();
   showHomeDashboard();
   pushUrl("/");
 });
+el("recentPostsViewAllBtn").addEventListener("click", () => selectAllBoards());
 
 // 탭 이름 → 그 탭이 열릴 때 새로 불러와야 할 데이터
 const ADMIN_TAB_LOADERS = {
@@ -1670,6 +1677,7 @@ function showHomeDashboard() {
   el("layoutEl").classList.add("no-sidebar");
   el("boardMenuBtn").classList.remove("hidden");
   renderLiveSummary();
+  loadRecentPostsForHome();
 }
 function hideHomeDashboard() {
   el("homeDashboard").classList.add("hidden");
@@ -2430,6 +2438,48 @@ async function loadAllPosts() {
   el("emptyState").classList.add("hidden");
   entries = sortForBoardList(entries, e => e.docSnap.data());
   showPostListPage(entries);
+}
+
+// ---------- 메인화면 "최근 게시글" 요약칸 (전체 게시판에서 최신 6개만 줄목록으로) ----------
+let recentPostsToken = 0;
+async function loadRecentPostsForHome() {
+  const myToken = ++recentPostsToken;
+  const boards = boardRows.filter(r => r.type === "board" && canViewBoard(r));
+  const perBoard = await Promise.all(boards.map(async (b) => {
+    try {
+      const docs = await fetchBoardPosts(b.id);
+      return docs.map(docSnap => ({ docSnap, boardName: b.name }));
+    } catch (err) {
+      return [];
+    }
+  }));
+  if (myToken !== recentPostsToken) return; // 그 사이에 다른 화면으로 이동했으면 이 결과는 버림
+  const entries = sortByDateDesc(perBoard.flat(), e => e.docSnap.data());
+  renderRecentPostsWidget(entries.slice(0, 6));
+}
+function renderRecentPostsWidget(entries) {
+  const listEl = el("recentPostsList");
+  const emptyText = el("recentPostsEmptyText");
+  if (!entries.length) {
+    listEl.innerHTML = "";
+    emptyText.classList.remove("hidden");
+    return;
+  }
+  emptyText.classList.add("hidden");
+  listEl.innerHTML = entries.map(({ docSnap, boardName }) => {
+    const p = docSnap.data();
+    return `
+      <div class="recent-post-row" data-id="${docSnap.id}">
+        ${p.isPinned ? `<span class="pin-badge-sm">📌</span>` : ""}
+        <span class="recent-post-board">${escapeHtml(boardName)}</span>
+        <span class="recent-post-title">${escapeHtml(p.title)}</span>
+        <span class="recent-post-meta">${escapeHtml(p.author || "익명")} · ${formatDate(p.createdAt)} · 👁 ${p.views || 0}</span>
+      </div>
+    `;
+  }).join("");
+  listEl.querySelectorAll(".recent-post-row").forEach(row => {
+    row.addEventListener("click", () => openPost(row.dataset.id));
+  });
 }
 
 // ---------- 사진 갤러리 (모든 게시글의 사진만 모아서 그리드로 보기) ----------
