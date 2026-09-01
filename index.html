@@ -30,6 +30,7 @@
     </div>
     <div class="topbar-actions">
       <button id="liveNavBtn" class="btn btn-ghost live-nav-btn">🔴 LIVE</button>
+      <button id="noticeNavBtn" class="btn btn-ghost">📰 방송국 소식</button>
       <div class="notice-menu-wrap" id="boardMenuWrap">
         <button id="boardMenuBtn" class="btn btn-ghost">📋 게시판 목록</button>
         <div id="boardMenuDropdown" class="notice-dropdown board-menu-dropdown hidden"></div>
@@ -454,6 +455,17 @@
         </button>
         <div id="liveOfflineList" class="live-offline-list hidden"></div>
       </section>
+    </section>
+
+    <!-- 방송국 소식 (등록된 방송인들의 SOOP 방송국 게시글을 모아서 보기) -->
+    <section id="noticeView" class="hidden">
+      <button id="noticeBackBtn" class="btn btn-ghost back-btn">← 목록으로</button>
+      <div class="content-header"><h2>📰 방송국 소식</h2></div>
+      <p class="hint-text">등록된 방송인들이 SOOP 방송국에 올린 글을 모았어요. 제목이나 사진을 누르면 원문으로 이동해요.</p>
+      <div id="noticeGroupTabs" class="live-group-tabs hidden"></div>
+      <div id="noticeList" class="notice-feed-list"></div>
+      <p id="noticeLoadingText" class="hint-text hidden">불러오는 중...</p>
+      <p id="noticeEmptyText" class="hint-text hidden">아직 모아온 글이 없어요.</p>
     </section>
 
   </main>

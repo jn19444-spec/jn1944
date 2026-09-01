@@ -269,6 +269,13 @@ async function routeFromLocation() {
     return;
   }
 
+  if (path === "/notice") {
+    showListView();
+    showHomeDashboard();
+    showNoticeView();
+    return;
+  }
+
   if (path === "/favorites") {
     if (currentUser) selectFavorites({ skipUrl: true });
     else replaceUrl("/");
@@ -580,6 +587,17 @@ el("liveNavBtn").addEventListener("click", () => {
   pushUrl("/live");
 });
 el("liveBackBtn").addEventListener("click", () => {
+  showListView();
+  showHomeDashboard();
+  pushUrl("/");
+});
+el("noticeNavBtn").addEventListener("click", () => {
+  showListView();
+  showHomeDashboard();
+  showNoticeView();
+  pushUrl("/notice");
+});
+el("noticeBackBtn").addEventListener("click", () => {
   showListView();
   showHomeDashboard();
   pushUrl("/");
@@ -1256,6 +1274,119 @@ function liveMemberGroups() {
   return [...set];
 }
 
+// ---------- 방송국 소식 (등록된 방송인들의 SOOP 방송국 게시글을 모아서 보기) ----------
+// SOOP은 공식 API가 아니라서 응답 필드가 문서마다 조금씩 달라요. 그래서 여러 가능한
+// 필드 이름을 다 시도해보고, 실패하면(CORS 등) 그 사람 글만 조용히 건너뛰어요.
+async function fetchStationHomePosts(bjId) {
+  try {
+    const res = await fetch(`https://chapi.sooplive.co.kr/api/${encodeURIComponent(bjId)}/home`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const root = data?.data || data;
+    const boards = root?.boards || root?.user_boards || [];
+    return boards.map(b => normalizeStationPost(b, bjId)).filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+function normalizeStationPost(b, bjId) {
+  const titleNo = b.title_no || b.bbs_no || b.board_no || b.no;
+  if (!titleNo) return null;
+  const thumbnail = b.thumbnail || b.photo || null;
+  return {
+    bjId,
+    titleNo,
+    title: b.title || "(제목 없음)",
+    content: b.content || b.summary || "",
+    regDate: b.reg_date || b.regdate || b.date || null,
+    viewCnt: b.view_cnt ?? b.viewCnt ?? null,
+    isNotice: !!(b.notice_yn === 1 || b.notice_yn === "1" || b.board_type === 105),
+    thumbnail: thumbnail ? (String(thumbnail).startsWith("http") ? thumbnail : "https:" + thumbnail) : null,
+    url: b.url || `https://ch.sooplive.co.kr/${encodeURIComponent(bjId)}/post/${titleNo}`,
+  };
+}
+function formatRelativeKo(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(String(dateStr).replace(" ", "T"));
+  if (isNaN(d.getTime())) return String(dateStr);
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return "방금 전";
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}일 전`;
+  return formatDate(d).split(" ")[0];
+}
+
+let stationNotices = [];
+let stationNoticesLoaded = false;
+let noticeGroupFilter = "전체";
+
+async function loadStationNotices(force) {
+  if (stationNoticesLoaded && !force) { renderStationNotices(); return; }
+  el("noticeLoadingText").classList.remove("hidden");
+  el("noticeEmptyText").classList.add("hidden");
+  el("noticeList").innerHTML = "";
+  const members = liveMembers.filter(m => m.bjId);
+  const perMember = await Promise.all(members.map(async m => {
+    const posts = await fetchStationHomePosts(m.bjId);
+    return posts.map(p => ({ ...p, memberName: m.name, groupName: m.groupName }));
+  }));
+  stationNotices = perMember.flat().sort((a, b) => {
+    const ta = a.regDate ? new Date(String(a.regDate).replace(" ", "T")).getTime() : 0;
+    const tb = b.regDate ? new Date(String(b.regDate).replace(" ", "T")).getTime() : 0;
+    return tb - ta;
+  });
+  stationNoticesLoaded = true;
+  el("noticeLoadingText").classList.add("hidden");
+  renderStationNotices();
+}
+function renderStationNotices() {
+  const groups = liveMemberGroups();
+  const tabsEl = el("noticeGroupTabs");
+  if (groups.length > 1) {
+    tabsEl.classList.remove("hidden");
+    tabsEl.innerHTML = ["전체", ...groups].map(g =>
+      `<button class="live-group-tab ${noticeGroupFilter === g ? "active" : ""}" data-group="${escapeHtml(g)}">${escapeHtml(g)}</button>`
+    ).join("");
+    tabsEl.querySelectorAll(".live-group-tab").forEach(btn => {
+      btn.addEventListener("click", () => { noticeGroupFilter = btn.dataset.group; renderStationNotices(); });
+    });
+  } else {
+    tabsEl.classList.add("hidden");
+    noticeGroupFilter = "전체";
+  }
+
+  const visible = stationNotices.filter(n => noticeGroupFilter === "전체" || n.groupName === noticeGroupFilter);
+  const listEl = el("noticeList");
+  const emptyText = el("noticeEmptyText");
+  if (!visible.length) {
+    listEl.innerHTML = "";
+    emptyText.classList.remove("hidden");
+    return;
+  }
+  emptyText.classList.add("hidden");
+  listEl.innerHTML = visible.map(n => noticeRowHtml(n)).join("");
+  listEl.querySelectorAll(".notice-feed-row").forEach(row => {
+    row.addEventListener("click", () => window.open(row.dataset.url, "_blank", "noopener"));
+  });
+}
+function noticeRowHtml(n) {
+  return `
+    <div class="notice-feed-row" data-url="${escapeHtml(n.url)}">
+      <div class="notice-feed-meta">
+        ${n.isNotice ? `<span class="notice-badge">공지</span>` : ""}
+        <span class="notice-feed-author">${escapeHtml(n.memberName)}</span>
+        <span class="notice-feed-time">${escapeHtml(formatRelativeKo(n.regDate))}</span>
+      </div>
+      <div class="notice-feed-title">${escapeHtml(n.title)}</div>
+      ${n.content ? `<div class="notice-feed-preview">${escapeHtml(stripImageMarkers(n.content))}</div>` : ""}
+      ${n.thumbnail ? `<div class="notice-feed-thumb-wrap"><img src="${escapeHtml(n.thumbnail)}" alt="" loading="lazy" decoding="async"></div>` : ""}
+    </div>
+  `;
+}
+
 function renderLiveRoster() {
   const section = el("liveRosterSection");
   if (!liveMembers.length) { section.classList.add("hidden"); return; }
@@ -1630,6 +1761,7 @@ function hideAllMainSections() {
   el("adminView").classList.add("hidden");
   el("hovercellView").classList.add("hidden");
   el("liveView").classList.add("hidden");
+  el("noticeView").classList.add("hidden");
 }
 function showListView() {
   hideAllMainSections();
@@ -1669,6 +1801,12 @@ function showLiveView() {
   hideAllMainSections();
   el("liveView").classList.remove("hidden");
   renderLiveRoster();
+}
+// 방송국 소식: 등록된 방송인들의 SOOP 방송국 게시글을 모아서 보여주는 큰 화면
+function showNoticeView() {
+  hideAllMainSections();
+  el("noticeView").classList.remove("hidden");
+  loadStationNotices();
 }
 
 function showHomeDashboard() {
