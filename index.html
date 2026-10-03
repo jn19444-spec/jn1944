@@ -17,7 +17,7 @@
 <link rel="dns-prefetch" href="https://i.ibb.co">
 <link rel="preconnect" href="https://ibb.co">
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260811b">
+<link rel="stylesheet" href="style.css?v=20261004a">
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -262,6 +262,7 @@
             <option value="">최상위 메뉴</option>
           </select>
           <input type="text" id="topMenuUrlInput" placeholder="링크 URL (선택 - 비워두면 아래 내용이 표시돼요)">
+          <input type="text" id="topMenuEmbedInput" placeholder="📺 위젯(방셀) 주소 (선택 - 넣으면 클릭 시 팝업 안에 그대로 열려요)">
           <textarea id="topMenuContentInput" placeholder="링크가 없을 때 보여줄 내용 (선택)" rows="3"></textarea>
           <div class="image-upload-box">
             <label for="topMenuImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지 추가</label>
@@ -515,6 +516,7 @@
 <div id="topMenuDetailModal" class="modal hidden">
   <div class="modal-box">
     <h3 id="topMenuDetailTitle"></h3>
+    <div id="topMenuDetailEmbed" class="topmenu-embed hidden"></div>
     <div id="topMenuDetailImages"></div>
     <div id="topMenuDetailContent" class="topmenu-detail-content"></div>
     <div class="form-actions">
@@ -570,8 +572,8 @@
 </div>
 <audio id="musicAudio" preload="metadata"></audio>
 
-<script type="module" src="firebase-config.js?v=20260811b"></script>
-<script type="module" src="app.js?v=20260811b"></script>
+<script type="module" src="firebase-config.js?v=20261004a"></script>
+<script type="module" src="app.js?v=20261004a"></script>
 <script>
   // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
   // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)

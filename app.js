@@ -3169,7 +3169,7 @@ async function loadTopMenuAdminTab() {
 
 // 헤더 아래 바로가기 바 (모든 방문자에게 보임)
 function topMenuLinkHtml(item, extraClass) {
-  const hasUrl = !!(item.url && item.url.trim());
+  const hasUrl = !!(item.url && item.url.trim()) && !(item.embedUrl && item.embedUrl.trim());
   const cls = "top-menu-link" + (extraClass ? " " + extraClass : "");
   return hasUrl
     ? `<a class="${cls}" href="${escapeHtml(normalizeUrl(item.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.name)}</a>`
@@ -3227,6 +3227,19 @@ function openTopMenuDetail(id) {
     imgAttrs: `data-idx="${i}" loading="${i === 0 ? "eager" : "lazy"}" decoding="async"`,
   })).join("");
   el("topMenuDetailContent").textContent = item.content || "";
+  // 위젯(방셀) 주소가 있으면 숲에서와 같은 방식(iframe)으로 팝업 안에 그대로 보여줘요
+  const embedEl = el("topMenuDetailEmbed");
+  const boxEl = el("topMenuDetailModal").querySelector(".modal-box");
+  const embedUrl = (item.embedUrl || "").trim();
+  if (embedUrl) {
+    embedEl.innerHTML = `<iframe title="${escapeHtml(item.name)}" sandbox="allow-scripts" allow="autoplay" referrerpolicy="no-referrer" src="${escapeHtml(normalizeUrl(embedUrl))}"></iframe>`;
+    embedEl.classList.remove("hidden");
+    boxEl.classList.add("has-embed");
+  } else {
+    embedEl.innerHTML = "";
+    embedEl.classList.add("hidden");
+    boxEl.classList.remove("has-embed");
+  }
   el("topMenuDetailModal").classList.remove("hidden");
   el("topMenuDetailModal").querySelectorAll(".detail-img").forEach(imgEl => {
     imgEl.addEventListener("click", () => openLightbox(images, Number(imgEl.dataset.idx)));
@@ -3234,6 +3247,7 @@ function openTopMenuDetail(id) {
 }
 function closeTopMenuDetail() {
   el("topMenuDetailModal").classList.add("hidden");
+  el("topMenuDetailEmbed").innerHTML = ""; // 닫으면 위젯도 같이 멈춰요
 }
 el("topMenuDetailCloseBtn").addEventListener("click", closeTopMenuDetail);
 el("topMenuDetailModal").addEventListener("click", (e) => {
@@ -3256,7 +3270,8 @@ function renderTopMenuAdminList() {
     row.className = "manage-row";
     const hasUrl = !!(item.url && item.url.trim());
     const parent = item.parentId ? topMenuItems.find(t => t.id === item.parentId) : null;
-    const label = (parent ? `　└ ` : "") + (hasUrl ? "🔗 " : "📝 ") + item.name;
+    const hasEmbed = !!(item.embedUrl && item.embedUrl.trim());
+    const label = (parent ? `　└ ` : "") + (hasEmbed ? "📺 " : hasUrl ? "🔗 " : "📝 ") + item.name;
     row.innerHTML = `
       <span class="drag-handle" title="끌어서 순서 바꾸기">⠿</span>
       <span class="manage-row-label">${escapeHtml(label)}</span>
@@ -3317,6 +3332,7 @@ function startEditTopMenu(item) {
   el("topMenuNameInput").value = item.name || "";
   el("topMenuParentSelect").value = item.parentId || "";
   el("topMenuUrlInput").value = item.url || "";
+  el("topMenuEmbedInput").value = item.embedUrl || "";
   el("topMenuContentInput").value = item.content || "";
   topMenuImageUrls = getImages(item).slice();
   topMenuImageThumbUrls = getThumbs(item).slice();
@@ -3331,6 +3347,7 @@ function cancelEditTopMenu() {
   el("topMenuNameInput").value = "";
   el("topMenuParentSelect").value = "";
   el("topMenuUrlInput").value = "";
+  el("topMenuEmbedInput").value = "";
   el("topMenuContentInput").value = "";
   topMenuImageUrls = [];
   topMenuImageThumbUrls = [];
@@ -3398,6 +3415,7 @@ el("topMenuSaveBtn").addEventListener("click", async () => {
   if (!name) { alert("메뉴 이름을 입력해주세요."); return; }
   const parentId = el("topMenuParentSelect").value || null;
   const url = el("topMenuUrlInput").value.trim();
+  const embedUrl = el("topMenuEmbedInput").value.trim();
   const content = el("topMenuContentInput").value.trim();
   const imageUrls = topMenuImageUrls.slice();
   const imageThumbUrls = topMenuImageThumbUrls.slice();
@@ -3407,9 +3425,9 @@ el("topMenuSaveBtn").addEventListener("click", async () => {
   btn.disabled = true;
   try {
     if (editingTopMenuId) {
-      await updateDoc(doc(db, "topMenus", editingTopMenuId), { name, parentId, url, content, imageUrls, imageThumbUrls });
+      await updateDoc(doc(db, "topMenus", editingTopMenuId), { name, parentId, url, embedUrl, content, imageUrls, imageThumbUrls });
     } else {
-      await addDoc(collection(db, "topMenus"), { name, parentId, url, content, imageUrls, imageThumbUrls, order: nextTopMenuOrder() });
+      await addDoc(collection(db, "topMenus"), { name, parentId, url, embedUrl, content, imageUrls, imageThumbUrls, order: nextTopMenuOrder() });
     }
     cancelEditTopMenu();
     await loadTopMenu();
