@@ -86,6 +86,7 @@ let selectedImageUrls = []; // 글쓰기 폼에서 업로드된(또는 기존) �
 let selectedImageThumbUrls = []; // 위 이미지들과 같은 순서의 목록용 작은 썸네일 URL
 let selectedImageDeleteUrls = []; // 위 이미지들과 같은 순서의 ImgBB 삭제용 링크(있으면). 게시글 삭제할 때 같이 정리하는 데 씀.
 let replacedImageDeleteUrls = []; // 수정 중 기존 이미지를 새 이미지로 교체했을 때, 저장 성공 후 정리할 예전 ImgBB 삭제 링크
+let selectedWidgets = []; // 글쓰기 폼에서 추가한 위젯 방셀(iframe) 목록: { url, height }
 let selectedHoverCells = []; // 글쓰기 폼에서 HTML로 가져온 호버방셀 목록
 
 let topMenuItems = []; // Firestore "topMenus" 컬렉션 (order 오름차순)
@@ -2296,12 +2297,80 @@ async function importHoverCellHtml(file) {
   }
 }
 
+// ---------- 위젯 방셀 (숲에 올려둔 MotionKit 같은 iframe 위젯을 게시글에 그대로 넣기) ----------
+function extractWidgetUrl(raw) {
+  let u = String(raw || "").trim();
+  const m = u.match(/src\s*=\s*["']([^"']+)["']/i); // iframe 코드를 통째로 붙여넣어도 주소만 뽑아요
+  if (m) u = m[1].trim();
+  if (/^http:\/\//i.test(u)) u = u.replace(/^http:/i, "https:");
+  else if (!/^https:\/\//i.test(u)) u = /^[\w.-]+\.[a-z]{2,}/i.test(u) ? "https://" + u : "";
+  if (!u) return "";
+  try { return new URL(u).href; } catch (_) { return ""; }
+}
+
+function getWidgets(p) {
+  if (!p || !p.widgetsJson) return [];
+  try {
+    const v = typeof p.widgetsJson === "string" ? JSON.parse(p.widgetsJson) : p.widgetsJson;
+    return Array.isArray(v) ? v.filter(w => w && w.url) : [];
+  } catch (_) { return []; }
+}
+
+function renderWidgetEmbed(w) {
+  const h = Math.min(2000, Math.max(100, Number(w.height) || 500));
+  return `<div class="post-widget" style="height:${h}px"><iframe title="방셀 위젯" sandbox="allow-scripts" allow="autoplay" referrerpolicy="no-referrer" loading="lazy" src="${escapeHtml(w.url)}"></iframe></div>`;
+}
+
+function renderWidgetUploadPreviews() {
+  const box = el("widgetPreviewList");
+  if (!box) return;
+  box.innerHTML = "";
+  selectedWidgets.forEach((w, idx) => {
+    const item = document.createElement("div");
+    item.className = "widget-upload-item";
+    item.innerHTML = `
+      <div class="widget-upload-info"><b>🧩 위젯 ${idx + 1}</b><span>${escapeHtml(w.url)}</span></div>
+      <button type="button" class="widget-upload-remove" title="삭제">✕</button>`;
+    item.querySelector(".widget-upload-remove").addEventListener("click", () => {
+      selectedWidgets.splice(idx, 1);
+      // 본문의 [위젯N] 표시도 같이 정리하고 번호를 다시 맞춰요
+      const ta = el("postContent");
+      if (ta) {
+        const n = idx + 1;
+        ta.value = ta.value
+          .replace(new RegExp("\\n*\\[위젯" + n + "\\]\\n*", "g"), "\n\n")
+          .replace(/\[위젯(\d+)\]/g, (all, d) => Number(d) > n ? `[위젯${Number(d) - 1}]` : all)
+          .trim();
+      }
+      renderWidgetUploadPreviews();
+    });
+    box.appendChild(item);
+  });
+}
+
+function addWidgetFromForm() {
+  const url = extractWidgetUrl(el("widgetUrlInput").value);
+  if (!url) { alert("위젯 주소를 확인해주세요. (https:// 로 시작하는 주소나 iframe 코드를 붙여넣으면 돼요)"); return; }
+  const height = Math.min(2000, Math.max(100, Number(el("widgetHeightInput").value) || 500));
+  selectedWidgets.push({ url, height });
+  const ta = el("postContent");
+  const marker = `[위젯${selectedWidgets.length}]`;
+  ta.value = ta.value.replace(/\s+$/g, "") + (ta.value.trim() ? "\n\n" : "") + marker;
+  el("widgetUrlInput").value = "";
+  renderWidgetUploadPreviews();
+}
+el("widgetAddToggleBtn").addEventListener("click", () => el("widgetAddBox").classList.toggle("hidden"));
+el("widgetAddBtn").addEventListener("click", addWidgetFromForm);
+
 function resetImageUploadUI() {
   selectedImageUrls = [];
   selectedImageThumbUrls = [];
   selectedImageDeleteUrls = [];
   replacedImageDeleteUrls = [];
   selectedHoverCells = [];
+  selectedWidgets = [];
+  renderWidgetUploadPreviews();
+  el("widgetAddBox").classList.add("hidden");
   el("postImageFiles").value = "";
   if (el("hovercellHtmlInput")) el("hovercellHtmlInput").value = "";
   renderHoverUploadPreviews();
@@ -2387,10 +2456,11 @@ el("postForm").addEventListener("submit", async (e) => {
     const imageThumbUrls = selectedImageThumbUrls.slice();
     const imageDeleteUrls = selectedImageDeleteUrls.slice();
     const hoverCellsJson = selectedHoverCells.slice();
+    const widgetsJson = selectedWidgets.slice();
     const hoverCellDeleteUrls = hoverCellsJson.flatMap(c => [c.baseDeleteUrl, c.overlayDeleteUrl]).filter(Boolean);
 
     if (editingPostId) {
-      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls, hoverCellsJson, hoverCellDeleteUrls });
+      await updateDoc(doc(db, "posts", editingPostId), { title, content, imageUrls, imageThumbUrls, imageDeleteUrls, hoverCellsJson, widgetsJson, hoverCellDeleteUrls });
       // 새 이미지 URL이 Firestore에 저장된 뒤에만 예전 ImgBB 이미지를 정리해요.
       if (replacedImageDeleteUrls.length) {
         tryDeleteImgbbImages(replacedImageDeleteUrls);
@@ -2408,7 +2478,7 @@ el("postForm").addEventListener("submit", async (e) => {
 
     await addDoc(collection(db, "posts"), {
       boardId: currentBoardId,
-      title, content, imageUrls, imageThumbUrls, imageDeleteUrls, hoverCellsJson, hoverCellDeleteUrls,
+      title, content, imageUrls, imageThumbUrls, imageDeleteUrls, hoverCellsJson, widgetsJson, hoverCellDeleteUrls,
       author: currentUser.email.split("@")[0],
       createdAt: serverTimestamp(),
       views: 0,
@@ -2808,6 +2878,8 @@ async function openPost(postId, opts = {}) {
       selectedImageDeleteUrls = images.map((u, i) => (Array.isArray(p.imageDeleteUrls) ? p.imageDeleteUrls[i] : null) || null);
       replacedImageDeleteUrls = [];
       selectedHoverCells = getHoverCells(p).map(c => ({ ...c }));
+      selectedWidgets = getWidgets(p).map(w => ({ ...w }));
+      renderWidgetUploadPreviews();
       renderImagePreviews();
       renderHoverUploadPreviews();
       const boardOfPost = boardRows.find(b => b.id === p.boardId);
@@ -4654,12 +4726,23 @@ function bindPostHoverCells() {
 // 실제 사진을 끼워 넣어요. 표시가 없거나 번호가 사진 개수를 벗어나면(예: 사진을 나중에 지움)
 // 그 사진들은 맨 아래에 몰아서 붙여요.
 function renderContentWithImages(p, images) {
-  const parts = String(p.content || "").split(/(\[사진\d+\]|\[호버방셀\d+\])/g);
+  const parts = String(p.content || "").split(/(\[사진\d+\]|\[호버방셀\d+\]|\[위젯\d+\])/g);
+  const widgets = getWidgets(p);
+  const usedWidget = new Set();
   const usedIdx = new Set();
   const hoverCells = getHoverCells(p);
   const usedHover = new Set();
   let html = "";
   parts.forEach(part => {
+    const wm = part.match(/^\[위젯(\d+)\]$/);
+    if (wm) {
+      const wi = Number(wm[1]) - 1;
+      if (wi >= 0 && wi < widgets.length && !usedWidget.has(wi)) {
+        usedWidget.add(wi);
+        html += renderWidgetEmbed(widgets[wi]);
+        return;
+      }
+    }
     const hm = part.match(/^\[호버방셀(\d+)\]$/);
     if (hm) {
       const hi = Number(hm[1]) - 1;
@@ -4682,6 +4765,10 @@ function renderContentWithImages(p, images) {
     html += escapeHtml(part);
   });
 
+  widgets.forEach((w, i) => {
+    if (!usedWidget.has(i)) html += renderWidgetEmbed(w); // 표시가 지워졌어도 위젯은 맨 아래에 붙여요
+  });
+
   images.forEach((u, i) => {
     if (usedIdx.has(i)) return;
     html += imgWrap(u, { wrapClass: "detail-wrap", imgClass: "detail-img", imgAttrs: `data-idx="${i}" loading="lazy" decoding="async"` });
@@ -4692,7 +4779,7 @@ function renderContentWithImages(p, images) {
 
 // 목록 미리보기용: [사진N] 표시는 글자로 보여줄 필요 없으니 지워요.
 function stripImageMarkers(text) {
-  return String(text || "").replace(/\[사진\d+\]/g, " ").replace(/\s{2,}/g, " ").trim();
+  return String(text || "").replace(/\[(?:사진|위젯)\d+\]/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
 // 목록/미리보기용 작은 썸네일 목록. imageThumbUrls가 없거나 개수가 안 맞는 옛날 글은

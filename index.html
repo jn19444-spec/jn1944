@@ -17,7 +17,7 @@
 <link rel="dns-prefetch" href="https://i.ibb.co">
 <link rel="preconnect" href="https://ibb.co">
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261004a">
+<link rel="stylesheet" href="style.css?v=20261004b">
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -132,12 +132,22 @@
           <div class="write-upload-actions">
             <label for="postImageFiles" class="btn btn-ghost image-upload-label">🖼 이미지/움짤 추가</label>
             <label for="hovercellHtmlInput" class="btn btn-ghost image-upload-label">✨ 호버방셀 HTML 추가</label>
+            <button type="button" id="widgetAddToggleBtn" class="btn btn-ghost image-upload-label">🧩 위젯 방셀 추가</button>
           </div>
           <input type="file" id="postImageFiles" accept="image/*" multiple class="hidden">
           <input type="file" id="hovercellHtmlInput" accept=".html,.htm,text/html" class="hidden">
           <span id="imageUploadStatus" class="image-upload-status hidden"></span>
           <div id="imagePreviewList" class="image-preview-list"></div>
           <div id="hovercellPreviewList" class="hovercell-upload-list"></div>
+          <div id="widgetAddBox" class="widget-add-box hidden">
+            <p class="hint-text">숲에 올린 방셀 같은 위젯 주소(또는 iframe 코드 통째로)를 붙여 넣으세요. 본문에 <b>[위젯1]</b> 처럼 표시가 들어가고, 그 자리에 위젯이 그대로 나와요.</p>
+            <input type="text" id="widgetUrlInput" placeholder="위젯 주소 또는 &lt;iframe ...&gt; 코드">
+            <div class="widget-add-row">
+              <label>높이(px) <input type="number" id="widgetHeightInput" value="500" min="100" max="2000" step="10"></label>
+              <button type="button" id="widgetAddBtn" class="btn btn-primary">➕ 추가</button>
+            </div>
+          </div>
+          <div id="widgetPreviewList" class="widget-upload-list"></div>
         </div>
         <div class="form-actions">
           <button type="button" id="cancelWriteBtn" class="btn btn-ghost">취소</button>
@@ -572,8 +582,8 @@
 </div>
 <audio id="musicAudio" preload="metadata"></audio>
 
-<script type="module" src="firebase-config.js?v=20261004a"></script>
-<script type="module" src="app.js?v=20261004a"></script>
+<script type="module" src="firebase-config.js?v=20261004b"></script>
+<script type="module" src="app.js?v=20261004b"></script>
 <script>
   // 404.html에서 저장해둔 원래 주소가 있으면 조용히 복원해요.
   // (GitHub Pages는 /board/xxx 같은 주소로 새로고침하면 404가 뜨는데, 그걸 우회하는 트릭)
